@@ -1,1 +1,57 @@
-
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conciliación Bancaria — Acceso</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',sans-serif;background:#F1F5F9;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:#fff;border-radius:12px;border:1px solid #CBD5E1;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.logo{width:48px;height:48px;background:#1F3864;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;margin:0 auto 20px}
+h1{font-size:20px;font-weight:600;color:#1E293B;text-align:center;margin-bottom:4px}
+.sub{font-size:12px;color:#94A3B8;text-align:center;margin-bottom:28px}
+.field{margin-bottom:14px}
+label{display:block;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+input{width:100%;padding:9px 12px;border:1px solid #CBD5E1;border-radius:7px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none;color:#1E293B;transition:border .15s}
+input:focus{border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.btn{width:100%;padding:10px;background:#1F3864;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:background .15s;margin-top:6px}
+.btn:hover{background:#2563EB}
+.err{display:none;background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:9px 12px;border-radius:7px;font-size:12px;margin-top:10px;text-align:center}
+.footer{font-size:10px;color:#94A3B8;text-align:center;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">EA</div>
+  <h1>Conciliación Bancaria</h1>
+  <div class="sub">Etchepare y Asociados Compañía Limitada</div>
+  <div class="field">
+    <label>Usuario</label>
+    <input type="text" id="usuario" placeholder="Ingresa tu usuario" autocomplete="username">
+  </div>
+  <div class="field">
+    <label>Contraseña</label>
+    <input type="password" id="password" placeholder="Ingresa tu contraseña" autocomplete="current-password">
+  </div>
+  <button class="btn" onclick="login()">Ingresar</button>
+  <div class="err" id="errMsg"></div>
+  <div class="footer">Uso interno — v3.0</div>
+</div>
+<script>
+document.getElementById('password').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
+async function login(){
+  const user=document.getElementById('usuario').value.trim();
+  const pass=document.getElementById('password').value.trim();
+  if(!user||!pass) return;
+  const fd=new FormData();
+  fd.append('usuario',user); fd.append('password',pass);
+  const resp=await fetch('/login',{method:'POST',body:fd});
+  const data=await resp.json();
+  if(data.ok) window.location.reload();
+  else{ const e=document.getElementById('errMsg'); e.textContent=data.msg; e.style.display='block'; }
+}
+</script>
+</body>
+</html>
