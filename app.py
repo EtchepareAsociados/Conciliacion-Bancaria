@@ -200,8 +200,8 @@ def procesar(hist_wb, cartola_wb):
         # 1. Primero verificar si es recuperación de caja
         match_caja = find_match_caja(a['rut_norm'], a['monto'])
         if match_caja:
-            carpeta = str(match_caja.get('CARPETA', ''))
-            res_caja.append({**base, 'carpeta': carpeta, 'estado': 'RECUPERACIÓN CAJA'})
+            nombre = match_caja.get('NOMBRE', '')
+            res_caja.append({**base, 'carpeta': '', 'estado': 'RECUPERACIÓN CAJA', 'nombre_dueno': nombre})
             continue
 
         # 2. Verificar si es arrendatario
