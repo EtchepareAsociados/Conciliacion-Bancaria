@@ -14,6 +14,7 @@
   --dif-bg:#FEE2E2;--dif-c:#991B1B;
   --mas-bg:#DBEAFE;--mas-c:#1D4ED8;
   --res-bg:#FEF3C7;--res-c:#92400E;
+  --rea-bg:#FEF9C3;--rea-c:#713F12;
   --caja-bg:#FED7AA;--caja-c:#7C2D12;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -25,13 +26,12 @@ body{font-family:'IBM Plex Sans',sans-serif;background:#F1F5F9;color:var(--black
 .topbar-sub{font-size:11px;color:#93C5FD;margin-top:1px}
 .topbar-right{display:flex;align-items:center;gap:10px}
 .topbar-user{font-size:11px;color:#93C5FD;background:rgba(255,255,255,.1);padding:4px 12px;border-radius:4px;border:1px solid rgba(255,255,255,.15)}
-.logout{font-size:11px;color:#94A3B8;cursor:pointer;text-decoration:none}
-.logout:hover{color:#fff}
+.logout{font-size:11px;color:#94A3B8;cursor:pointer;text-decoration:none}.logout:hover{color:#fff}
 .container{max-width:1280px;margin:0 auto;padding:20px 24px}
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
 .step{background:#fff;border:1px solid var(--gray-b);border-radius:10px;padding:16px 18px}
 .step-num{width:22px;height:22px;background:var(--navy);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;margin-bottom:8px}
-.step-title{font-size:12px;font-weight:600;color:var(--black);margin-bottom:3px}
+.step-title{font-size:12px;font-weight:600;margin-bottom:3px}
 .step-sub{font-size:11px;color:var(--muted);line-height:1.5}
 .card{background:#fff;border-radius:10px;border:1px solid var(--gray-b);padding:20px 24px;margin-bottom:16px}
 .card-title{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;display:flex;align-items:center;gap:8px}
@@ -42,7 +42,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:#F1F5F9;color:var(--black
 .upload-box:hover{border-color:var(--blue);background:#EFF6FF}
 .upload-box.done{border-color:var(--ok-br);border-style:solid;background:#F0FDF4}
 .upload-icon{font-size:24px;margin-bottom:6px}
-.upload-label{font-size:12px;font-weight:600;color:var(--black)}
+.upload-label{font-size:12px;font-weight:600}
 .upload-sub{font-size:10px;color:var(--muted2);margin-top:3px}
 .upload-fname{font-size:11px;color:var(--ok-br);font-weight:600;margin-top:5px}
 input[type=file]{display:none}
@@ -59,14 +59,52 @@ input[type=file]{display:none}
 .progress p{font-size:12px;color:#1D4ED8;font-weight:500}
 .alert-err{display:none;background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:10px 16px;border-radius:8px;font-size:12px;margin-bottom:12px}
 .update-info{display:none;background:#F0FDF4;border:1px solid #BBF7D0;color:#14532D;padding:10px 16px;border-radius:8px;font-size:12px;margin-bottom:14px}
-.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--gray-b);border-radius:10px;overflow:hidden;margin-bottom:16px}
-.kpi{padding:16px;border-right:1px solid var(--gray-b);background:#fff;cursor:pointer;transition:background .15s}
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);border:1px solid var(--gray-b);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.kpi{padding:14px;border-right:1px solid var(--gray-b);background:#fff;cursor:pointer;transition:background .15s}
 .kpi:last-child{border-right:none}
 .kpi:hover,.kpi.active{background:#EFF6FF}
-.kpi-bar{height:3px;border-radius:2px;margin-bottom:12px}
-.kpi-num{font-size:26px;font-weight:600;line-height:1}
+.kpi-bar{height:3px;border-radius:2px;margin-bottom:10px}
+.kpi-num{font-size:24px;font-weight:600;line-height:1}
 .kpi-label{font-size:10px;color:var(--muted);margin-top:4px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
 .kpi-monto{font-size:10px;color:var(--muted2);margin-top:4px;font-family:'IBM Plex Mono',monospace}
+
+/* ── Vista carpetas ── */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:13px;font-weight:600;color:var(--black);display:flex;align-items:center;gap:8px}
+.carpetas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-bottom:16px}
+.carpeta-card{background:#fff;border:1px solid var(--gray-b);border-radius:10px;overflow:hidden;transition:box-shadow .15s}
+.carpeta-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.carpeta-card.clasif-ok{border-left:4px solid #16A34A}
+.carpeta-card.clasif-dif{border-left:4px solid #EF4444}
+.carpeta-card.clasif-reajuste{border-left:4px solid #D97706}
+.carpeta-card.clasif-caja{border-left:4px solid #C2410C}
+.carpeta-card.clasif-reserva{border-left:4px solid #92400E}
+.carpeta-head{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gray-a)}
+.carpeta-num{font-size:20px;font-weight:700;color:var(--navy)}
+.carpeta-rut{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-top:2px}
+.carpeta-badge{font-size:10px;font-weight:600;padding:3px 10px;border-radius:12px}
+.carpeta-body{padding:12px 14px}
+.carpeta-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:11px}
+.carpeta-row-label{color:var(--muted)}
+.carpeta-row-val{font-weight:600;font-family:'IBM Plex Mono',monospace}
+.carpeta-diff-pos{color:#16A34A}
+.carpeta-diff-neg{color:#EF4444}
+.carpeta-diff-zero{color:var(--muted)}
+.carpeta-pagos{margin-top:8px;border-top:1px solid var(--gray-a);padding-top:8px}
+.carpeta-pago{display:flex;justify-content:space-between;font-size:10px;padding:3px 0;color:var(--muted)}
+.carpeta-pago-monto{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--black)}
+.carpeta-actions{padding:10px 14px;background:var(--gray-h);display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--gray-a)}
+.btn-clasif{font-size:10px;font-weight:600;padding:4px 10px;border-radius:5px;border:1px solid;cursor:pointer;transition:all .15s;font-family:'IBM Plex Sans',sans-serif}
+.btn-clasif.active-ok{background:#DCFCE7;color:#14532D;border-color:#16A34A}
+.btn-clasif.active-dif{background:#FEE2E2;color:#991B1B;border-color:#EF4444}
+.btn-clasif.active-reajuste{background:#FEF3C7;color:#92400E;border-color:#D97706}
+.btn-clasif.active-caja{background:#FED7AA;color:#7C2D12;border-color:#C2410C}
+.btn-clasif.inactive{background:#fff;color:var(--muted);border-color:var(--gray-b)}
+.btn-clasif:hover{opacity:.8}
+.carpeta-obs{width:100%;margin-top:6px;padding:5px 8px;font-size:10px;border:1px solid var(--gray-b);border-radius:5px;font-family:'IBM Plex Sans',sans-serif;color:var(--black);resize:none;height:42px}
+.carpeta-obs:focus{outline:none;border-color:var(--blue)}
+
+/* ── Tabs vista tabla ── */
 .tabs{display:flex;border-bottom:1px solid var(--gray-b);margin-bottom:14px}
 .tab{padding:8px 18px;font-size:12px;font-weight:500;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;display:flex;align-items:center;gap:6px}
 .tab:hover{color:var(--black)}
@@ -76,7 +114,7 @@ input[type=file]{display:none}
 .search{flex:1;max-width:320px;padding:7px 12px;border:1px solid var(--gray-b);border-radius:7px;font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none}
 .search:focus{border-color:var(--blue)}
 .counter{font-size:11px;color:var(--muted2)}
-.table-wrap{overflow:auto;max-height:480px;border:1px solid var(--gray-b);border-radius:8px}
+.table-wrap{overflow:auto;max-height:420px;border:1px solid var(--gray-b);border-radius:8px}
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead th{position:sticky;top:0;background:var(--navy);color:#E2E8F0;font-weight:500;padding:9px 12px;text-align:left;white-space:nowrap;font-size:11px;letter-spacing:.03em;z-index:2}
 tbody tr{border-bottom:1px solid var(--gray-a)}
@@ -95,12 +133,16 @@ td{padding:7px 12px;vertical-align:middle}
 .b-mas{background:var(--mas-bg);color:var(--mas-c)}
 .b-menos{background:var(--dif-bg);color:var(--dif-c)}
 .b-reserva{background:var(--res-bg);color:var(--res-c)}
+.b-reajuste{background:var(--rea-bg);color:var(--rea-c)}
 .b-caja{background:var(--caja-bg);color:var(--caja-c)}
 .b-mes{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px}
 .empty{text-align:center;padding:48px;color:var(--muted2)}
 .empty-icon{font-size:32px;margin-bottom:8px;opacity:.5}
 .hidden{display:none!important}
 .footer{text-align:center;font-size:10px;color:var(--muted2);padding:16px 0 8px}
+.view-toggle{display:flex;gap:6px}
+.view-btn{padding:6px 14px;font-size:11px;font-weight:600;border-radius:6px;border:1px solid var(--gray-b);cursor:pointer;background:#fff;color:var(--muted);font-family:'IBM Plex Sans',sans-serif}
+.view-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}
 </style>
 </head>
 <body>
@@ -122,21 +164,9 @@ td{padding:7px 12px;vertical-align:middle}
 <div class="container">
 
   <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-title">Base de datos automática</div>
-      <div class="step-sub">Los arrendatarios y montos ya están cargados. Se actualizan mensualmente.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-title">Sube historial + cartola</div>
-      <div class="step-sub">El Excel acumulativo del año y la cartola bancaria descargada hoy.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-title">Procesa y descarga</div>
-      <div class="step-sub">Solo agrega los depósitos nuevos con formato completo. Reemplázalo en Drive.</div>
-    </div>
+    <div class="step"><div class="step-num">1</div><div class="step-title">Sube los archivos</div><div class="step-sub">El historial acumulativo del año y la cartola bancaria del día.</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-title">Revisa por carpeta</div><div class="step-sub">El sistema propone la clasificación. Confirma o ajusta cada una.</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-title">Descarga el Excel</div><div class="step-sub">Solo agrega los depósitos nuevos clasificados. Reemplázalo en Drive.</div></div>
   </div>
 
   <div class="card">
@@ -175,24 +205,51 @@ td{padding:7px 12px;vertical-align:middle}
   <div class="update-info" id="updateInfo"></div>
 
   <div id="secResultado" class="hidden">
+
+    <!-- KPIs -->
     <div class="kpi-grid" id="kpiGrid"></div>
+
+    <!-- Vista carpetas / tabla -->
     <div class="card">
-      <div class="tabs" id="tabsRow"></div>
-      <div class="toolbar">
-        <input class="search" id="buscador" type="text" placeholder="Buscar RUT, carpeta, nombre..." oninput="renderTabla()">
-        <span class="counter" id="contador"></span>
+      <div class="section-header">
+        <div class="section-title" id="secTitulo">📋 Revisión por carpeta</div>
+        <div class="view-toggle">
+          <button class="view-btn active" id="btnVistaCarpetas" onclick="setVista('carpetas')">🏠 Por carpeta</button>
+          <button class="view-btn" id="btnVistaTabla" onclick="setVista('tabla')">📋 Tabla detalle</button>
+        </div>
       </div>
-      <div class="table-wrap">
-        <table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+
+      <!-- Vista carpetas -->
+      <div id="vistaCarpetas">
+        <div class="toolbar">
+          <input class="search" id="buscadorCarpeta" type="text" placeholder="Buscar carpeta, RUT..." oninput="renderCarpetas()">
+          <span class="counter" id="contadorCarpetas"></span>
+        </div>
+        <div class="carpetas-grid" id="carpetasGrid"></div>
+        <!-- Reservas y caja van directo al Excel -->
+        <div id="secDirectos" class="hidden">
+          <div style="font-size:11px;color:var(--muted);padding:8px 0 4px;font-weight:600;">
+            📥 Van directo al Excel sin revisión: <span id="lblDirectos"></span>
+          </div>
+        </div>
       </div>
-      <div class="empty hidden" id="emptyState">
-        <div class="empty-icon">🔍</div>
-        <div>Sin resultados para este filtro</div>
+
+      <!-- Vista tabla -->
+      <div id="vistaTabla" class="hidden">
+        <div class="tabs" id="tabsRow"></div>
+        <div class="toolbar">
+          <input class="search" id="buscador" type="text" placeholder="Buscar RUT, carpeta, nombre..." oninput="renderTabla()">
+          <span class="counter" id="contador"></span>
+        </div>
+        <div class="table-wrap">
+          <table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+        </div>
+        <div class="empty hidden" id="emptyState"><div class="empty-icon">🔍</div><div>Sin resultados</div></div>
       </div>
     </div>
   </div>
 
-  <div class="footer">Etchepare y Asociados — Uso interno — v3.0</div>
+  <div class="footer">Etchepare y Asociados — Uso interno — v4.0</div>
 </div>
 
 <script>
@@ -200,12 +257,14 @@ const MESES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','
 const MES_BG={ENERO:'#DBEAFE',FEBRERO:'#BAE6FD',MARZO:'#BBF7D0',ABRIL:'#FEF08A',MAYO:'#FED7AA',JUNIO:'#FECACA',JULIO:'#E9D5FF',AGOSTO:'#FBCFE8',SEPTIEMBRE:'#A7F3D0',OCTUBRE:'#FDE68A',NOVIEMBRE:'#BAE6FD',DICIEMBRE:'#DDD6FE'};
 const MES_FG={ENERO:'#1E3A8A',FEBRERO:'#075985',MARZO:'#14532D',ABRIL:'#713F12',MAYO:'#7C2D12',JUNIO:'#7F1D1D',JULIO:'#4C1D95',AGOSTO:'#831843',SEPTIEMBRE:'#064E3B',OCTUBRE:'#78350F',NOVIEMBRE:'#0C4A6E',DICIEMBRE:'#3B0764'};
 
-let resultData=null, tabActiva='ok';
+let resultData=null, tabActiva='ok', vistaActual='carpetas';
+// decisiones locales: {carpeta_id: {clasificacion, mes, obs}}
+let decisiones = {};
 
-function fmt(n){ return Math.round(n).toLocaleString('es-CL'); }
+function fmt(n){return Math.round(n).toLocaleString('es-CL');}
 
-function fileSelected(inp, boxId, nameId){
-  const f=inp.files[0]; if(!f)return;
+function fileSelected(inp,boxId,nameId){
+  const f=inp.files[0];if(!f)return;
   document.getElementById(nameId).textContent='✓ '+f.name;
   document.getElementById(nameId).classList.remove('hidden');
   document.getElementById(boxId).classList.add('done');
@@ -239,26 +298,34 @@ async function procesar(){
   const prog=document.getElementById('progBar');
   const err=document.getElementById('alertErr');
   const info=document.getElementById('updateInfo');
-  err.style.display='none'; info.style.display='none';
+  err.style.display='none';info.style.display='none';
   prog.classList.add('show');
   document.getElementById('progMsg').textContent='Procesando depósitos...';
   document.getElementById('btnProcesar').disabled=true;
   try{
     const fd=new FormData();
-    fd.append('historial',h); fd.append('cartola',c);
+    fd.append('historial',h);fd.append('cartola',c);
     const resp=await fetch('/procesar',{method:'POST',body:fd});
     const data=await resp.json();
     if(data.error){err.textContent='Error: '+data.error;err.style.display='block';return;}
     resultData=data;
-    const ok   = data.ok   || [];
-    const dif  = data.dif  || [];
-    const res  = data.res  || [];
-    const caja = data.caja || [];
-    const total = ok.length + dif.length + res.length + caja.length;
+
+    // Inicializar decisiones desde propuestas del servidor
+    decisiones={};
+    (data.carpetas||[]).forEach(c=>{
+      decisiones[c.carpeta]={
+        clasificacion: c.propuesta||'dif',
+        mes: c.mes||data.mes,
+        obs: c.obs||''
+      };
+    });
+
+    const ok=data.ok||[], dif=data.dif||[], rea=data.reajuste||[], res=data.res||[], caja=data.caja||[];
+    const total=ok.length+dif.length+rea.length+res.length+caja.length;
     if(total===0){
-      info.textContent='✓ Todos los depósitos de esta cartola ya estaban en el historial. No hay registros nuevos.';
+      info.textContent='✓ Todos los depósitos ya estaban en el historial. No hay registros nuevos.';
     }else{
-      info.textContent=`✓ Se encontraron ${total} depósitos nuevos: ${ok.length} OK, ${dif.length} con diferencia, ${res.length} reserva, ${caja.length} recuperación caja.`;
+      info.textContent=`✓ ${total} depósitos nuevos: ${ok.length} OK · ${dif.length} diferencias · ${rea.length} reajustes · ${res.length} reservas · ${caja.length} rec. caja.`;
     }
     info.style.display='block';
     mostrarResultado();
@@ -272,108 +339,226 @@ async function procesar(){
   }
 }
 
-const TABS=[
-  {id:'ok',   label:'✔ Arriendos OK',       bg:'#DCFCE7',fg:'#14532D'},
-  {id:'dif',  label:'⚡ Con Diferencia',     bg:'#FEE2E2',fg:'#991B1B'},
-  {id:'res',  label:'★ Reserva',             bg:'#FEF3C7',fg:'#92400E'},
-  {id:'caja', label:'🏠 Recuperación Caja',  bg:'#FED7AA',fg:'#7C2D12'},
-];
-const getData=id=>resultData?(resultData[id]||[]):[];
-
 function mostrarResultado(){
   document.getElementById('secResultado').classList.remove('hidden');
-  const ok   = resultData.ok   || [];
-  const dif  = resultData.dif  || [];
-  const res  = resultData.res  || [];
-  const caja = resultData.caja || [];
-  const all  = [...ok,...dif,...res,...caja];
+  const ok=resultData.ok||[], dif=resultData.dif||[], rea=resultData.reajuste||[];
+  const res=resultData.res||[], caja=resultData.caja||[];
+  const all=[...ok,...dif,...rea,...res,...caja];
+
   const kpis=[
-    {label:'Nuevos hoy',        color:'#2563EB', data:all},
+    {label:'Total nuevos',      color:'#2563EB', data:all},
     {label:'Arriendos OK',      color:'#16A34A', data:ok},
     {label:'Con Diferencia',    color:'#EF4444', data:dif},
-    {label:'Reserva',           color:'#D97706', data:res},
-    {label:'Recuperación Caja', color:'#C2410C', data:caja},
+    {label:'Reajustes',         color:'#D97706', data:rea},
+    {label:'Reservas',          color:'#92400E', data:res},
+    {label:'Rec. Caja',         color:'#C2410C', data:caja},
   ];
   document.getElementById('kpiGrid').innerHTML=kpis.map((k,i)=>`
-    <div class="kpi${i===0?' active':''}" onclick="clickKpi(${i})" id="kpi${i}">
+    <div class="kpi${i===0?' active':''}" id="kpi${i}" onclick="clickKpi(${i})">
       <div class="kpi-bar" style="background:${k.color}"></div>
       <div class="kpi-num" style="color:${k.color}">${k.data.length}</div>
       <div class="kpi-label">${k.label}</div>
       <div class="kpi-monto">$${fmt(k.data.reduce((s,r)=>s+(r.monto||0),0))}</div>
     </div>`).join('');
+
+  renderCarpetas();
+  renderTabsTabla();
+  document.getElementById('secResultado').scrollIntoView({behavior:'smooth'});
+}
+
+function setVista(v){
+  vistaActual=v;
+  document.getElementById('vistaCarpetas').classList.toggle('hidden', v!=='carpetas');
+  document.getElementById('vistaTabla').classList.toggle('hidden', v!=='tabla');
+  document.getElementById('btnVistaCarpetas').classList.toggle('active', v==='carpetas');
+  document.getElementById('btnVistaTabla').classList.toggle('active', v==='tabla');
+  if(v==='tabla') renderTabla();
+}
+
+function clasifLabel(c){
+  const map={ok:'✔ OK', dif:'⚡ Diferencia', reajuste:'⚠️ Reajuste', caja:'🏠 Rec. Caja', reserva:'★ Reserva'};
+  return map[c]||c;
+}
+function clasifColors(c){
+  const map={
+    ok:{bg:'#DCFCE7',fg:'#14532D'},
+    dif:{bg:'#FEE2E2',fg:'#991B1B'},
+    reajuste:{bg:'#FEF3C7',fg:'#92400E'},
+    caja:{bg:'#FED7AA',fg:'#7C2D12'},
+    reserva:{bg:'#FEF3C7',fg:'#92400E'},
+  };
+  return map[c]||{bg:'#F1F5F9',fg:'#475569'};
+}
+
+function renderCarpetas(){
+  const carpetas = resultData?.carpetas||[];
+  const q = (document.getElementById('buscadorCarpeta').value||'').toLowerCase();
+  const filtradas = carpetas.filter(c=>
+    !q || c.carpeta.toString().includes(q) || (c.rut||'').toLowerCase().includes(q)
+  );
+  document.getElementById('contadorCarpetas').textContent=`${filtradas.length} carpetas`;
+
+  const html = filtradas.map(c=>{
+    const dec = decisiones[c.carpeta] || {clasificacion: c.propuesta||'dif', mes: c.mes, obs:''};
+    const col = clasifColors(dec.clasificacion);
+    const diffVal = c.diff;
+    const diffClass = diffVal===0?'carpeta-diff-zero':diffVal>0?'carpeta-diff-pos':'carpeta-diff-neg';
+    const diffStr = diffVal===0?'Exacto':diffVal>0?`+$${fmt(diffVal)}`:`-$${fmt(Math.abs(diffVal))}`;
+
+    const pagosHtml = c.pagos.map(p=>`
+      <div class="carpeta-pago">
+        <span>${p.fecha}</span>
+        <span class="carpeta-pago-monto">$${fmt(p.monto)}</span>
+      </div>`).join('');
+
+    const clasifs = ['ok','dif','reajuste','caja'];
+    const btnsHtml = clasifs.map(cl=>`
+      <button class="btn-clasif ${dec.clasificacion===cl?'active-'+cl:'inactive'}"
+        onclick="setClasif('${c.carpeta}','${cl}','${c.mes}')">
+        ${clasifLabel(cl)}
+      </button>`).join('');
+
+    return`<div class="carpeta-card clasif-${dec.clasificacion}" id="card-${c.carpeta}">
+      <div class="carpeta-head">
+        <div>
+          <div class="carpeta-num">${c.carpeta}</div>
+          <div class="carpeta-rut">${c.rut}</div>
+        </div>
+        <span class="carpeta-badge" style="background:${col.bg};color:${col.fg}">${clasifLabel(dec.clasificacion)}</span>
+      </div>
+      <div class="carpeta-body">
+        <div class="carpeta-row">
+          <span class="carpeta-row-label">Monto esperado</span>
+          <span class="carpeta-row-val">$${fmt(c.monto_esp)}</span>
+        </div>
+        <div class="carpeta-row">
+          <span class="carpeta-row-label">Total pagado</span>
+          <span class="carpeta-row-val">$${fmt(c.total_pag)}</span>
+        </div>
+        <div class="carpeta-row">
+          <span class="carpeta-row-label">Diferencia</span>
+          <span class="carpeta-row-val ${diffClass}">${diffStr}</span>
+        </div>
+        <div class="carpeta-pagos">${pagosHtml}</div>
+      </div>
+      <div class="carpeta-actions">
+        ${btnsHtml}
+        <textarea class="carpeta-obs" id="obs-${c.carpeta}" placeholder="Observación (opcional)..."
+          onchange="setObs('${c.carpeta}',this.value)">${dec.obs||''}</textarea>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('carpetasGrid').innerHTML = html || '<div class="empty"><div class="empty-icon">🔍</div><div>Sin carpetas reconocidas</div></div>';
+
+  // Info directos (reservas + caja)
+  const res=resultData?.res||[], caja=resultData?.caja||[];
+  const dirSec=document.getElementById('secDirectos');
+  if(res.length+caja.length>0){
+    dirSec.classList.remove('hidden');
+    document.getElementById('lblDirectos').textContent=`${res.length} reservas · ${caja.length} recuperación caja`;
+  }else{
+    dirSec.classList.add('hidden');
+  }
+}
+
+async function setClasif(carpeta, clasif, mes){
+  if(!decisiones[carpeta]) decisiones[carpeta]={clasificacion:clasif, mes:mes, obs:''};
+  decisiones[carpeta].clasificacion = clasif;
+
+  // Guardar en servidor
+  try{
+    await fetch('/guardar_decision',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({carpeta, mes: resultData?.mes||mes, clasificacion:clasif,
+        obs: decisiones[carpeta].obs||'', mes_asignado: mes})
+    });
+  }catch(e){}
+
+  // Re-render solo esa card
+  const card=document.getElementById('card-'+carpeta);
+  if(card){
+    const col=clasifColors(clasif);
+    card.className=`carpeta-card clasif-${clasif}`;
+    card.querySelector('.carpeta-badge').textContent=clasifLabel(clasif);
+    card.querySelector('.carpeta-badge').style.background=col.bg;
+    card.querySelector('.carpeta-badge').style.color=col.fg;
+    card.querySelectorAll('.btn-clasif').forEach(btn=>{
+      const bc=btn.textContent.trim();
+      const map={'✔ OK':'ok','⚡ Diferencia':'dif','⚠️ Reajuste':'reajuste','🏠 Rec. Caja':'caja'};
+      const bCl=Object.entries(map).find(([k])=>bc.includes(k.replace(/[✔⚡⚠️🏠]/g,'').trim()));
+      const btnClasif = Object.entries(map).find(([k,v])=>bc.includes(k))?.[1];
+      btn.className=`btn-clasif ${btnClasif===clasif?'active-'+clasif:'inactive'}`;
+    });
+  }
+}
+
+function setObs(carpeta, obs){
+  if(!decisiones[carpeta]) decisiones[carpeta]={clasificacion:'dif',mes:'',obs:''};
+  decisiones[carpeta].obs=obs;
+  try{
+    fetch('/guardar_decision',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({carpeta, mes:resultData?.mes||'', clasificacion:decisiones[carpeta].clasificacion, obs, mes_asignado:decisiones[carpeta].mes||''})
+    });
+  }catch(e){}
+}
+
+// ── Vista tabla ──
+const TABS=[
+  {id:'ok',       label:'✔ OK',           bg:'#DCFCE7',fg:'#14532D'},
+  {id:'dif',      label:'⚡ Diferencia',   bg:'#FEE2E2',fg:'#991B1B'},
+  {id:'reajuste', label:'⚠️ Reajuste',     bg:'#FEF3C7',fg:'#92400E'},
+  {id:'res',      label:'★ Reserva',       bg:'#FEF3C7',fg:'#92400E'},
+  {id:'caja',     label:'🏠 Rec. Caja',    bg:'#FED7AA',fg:'#7C2D12'},
+];
+const getData=id=>resultData?(resultData[id]||[]):[];
+
+function renderTabsTabla(){
   document.getElementById('tabsRow').innerHTML=TABS.map(t=>`
     <div class="tab${t.id===tabActiva?' active':''}" onclick="switchTab('${t.id}')">
       ${t.label}
       <span class="tab-badge" style="background:${t.bg};color:${t.fg}">${getData(t.id).length}</span>
     </div>`).join('');
-  renderTabla();
-  document.getElementById('secResultado').scrollIntoView({behavior:'smooth'});
-}
-
-function clickKpi(i){
-  document.querySelectorAll('.kpi').forEach((k,j)=>k.classList.toggle('active',i===j));
-  const map={1:'ok',2:'dif',3:'res',4:'caja'};
-  if(map[i]) switchTab(map[i]);
 }
 
 function switchTab(id){
   tabActiva=id;
-  document.querySelectorAll('.tab').forEach((t,i)=>{
-    t.classList.toggle('active', TABS[i].id===id);
-  });
+  document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',TABS[i].id===id);});
   renderTabla();
+}
+
+function clickKpi(i){
+  document.querySelectorAll('.kpi').forEach((k,j)=>k.classList.toggle('active',i===j));
+  const map={1:'ok',2:'dif',3:'reajuste',4:'res',5:'caja'};
+  if(map[i]){setVista('tabla');switchTab(map[i]);}
 }
 
 function renderTabla(){
   if(!resultData)return;
   const q=(document.getElementById('buscador').value||'').toLowerCase();
   let data=getData(tabActiva)||[];
-  if(q)data=data.filter(r=>
-    (r.rut||'').toLowerCase().includes(q)||
-    (r.carpeta||'').toLowerCase().includes(q)||
-    (r.desc||'').toLowerCase().includes(q)||
-    (r.mes||'').toLowerCase().includes(q)
-  );
+  if(q)data=data.filter(r=>(r.rut||'').toLowerCase().includes(q)||(r.carpeta||'').toLowerCase().includes(q)||(r.desc||'').toLowerCase().includes(q)||(r.mes||'').toLowerCase().includes(q));
   document.getElementById('contador').textContent=`${data.length} registros`;
   document.getElementById('emptyState').classList.toggle('hidden',data.length>0);
 
-  // Reservas: sin carpeta. Resto: con carpeta
-  const simple = tabActiva==='res';
-  const hdrs = simple
-    ? ['Fecha','RUT','Monto ($)','Mes','Estado','Descripción']
-    : ['Fecha','Carpeta','RUT','Monto ($)','Mes','Estado','Descripción'];
-
+  const simple=tabActiva==='res';
+  const hdrs=simple?['Fecha','RUT','Monto ($)','Mes','Estado','Descripción']:['Fecha','Carpeta','RUT','Monto ($)','Mes','Estado','Descripción'];
   document.getElementById('tableHead').innerHTML=`<tr>${hdrs.map(h=>`<th>${h}</th>`).join('')}</tr>`;
   document.getElementById('tableBody').innerHTML=data.map(r=>{
-    const mb=r.mes&&MES_BG[r.mes]
-      ?`<span class="badge b-mes" style="background:${MES_BG[r.mes]};color:${MES_FG[r.mes]}">${r.mes}</span>`
-      :(r.mes||'—');
+    const mb=r.mes&&MES_BG[r.mes]?`<span class="badge b-mes" style="background:${MES_BG[r.mes]};color:${MES_FG[r.mes]}">${r.mes}</span>`:(r.mes||'—');
     let eb;
-    if(r.estado==='OK')                    eb='<span class="badge b-ok">✔ OK</span>';
-    else if(r.estado==='RESERVA')          eb='<span class="badge b-reserva">★ Reserva</span>';
-    else if(r.estado==='RECUPERACIÓN CAJA')eb='<span class="badge b-caja">🏠 Rec. Caja</span>';
+    if(r.estado==='OK')                     eb='<span class="badge b-ok">✔ OK</span>';
+    else if(r.estado==='RESERVA')           eb='<span class="badge b-reserva">★ Reserva</span>';
+    else if(r.estado==='RECUPERACIÓN CAJA') eb='<span class="badge b-caja">🏠 Rec. Caja</span>';
+    else if(r.estado&&r.estado.includes('REAJUSTE')) eb=`<span class="badge b-reajuste">${r.estado}</span>`;
     else if(r.estado&&r.estado.startsWith('▲')) eb=`<span class="badge b-mas">${r.estado}</span>`;
-    else                                   eb=`<span class="badge b-menos">${r.estado}</span>`;
+    else eb=`<span class="badge b-menos">${r.estado||''}</span>`;
 
-    if(simple){
-      return`<tr>
-        <td class="td-fecha">${r.fecha}</td>
-        <td class="td-rut">${r.rut}</td>
-        <td class="td-monto">$${fmt(r.monto)}</td>
-        <td class="td-mes">${mb}</td>
-        <td class="td-estado">${eb}</td>
-        <td class="td-desc" title="${r.desc}">${r.desc}</td>
-      </tr>`;
-    }
-    return`<tr>
-      <td class="td-fecha">${r.fecha}</td>
-      <td class="td-carp">${r.carpeta||''}</td>
-      <td class="td-rut">${r.rut}</td>
-      <td class="td-monto">$${fmt(r.monto)}</td>
-      <td class="td-mes">${mb}</td>
-      <td class="td-estado">${eb}</td>
-      <td class="td-desc" title="${r.desc}">${r.desc}</td>
-    </tr>`;
+    if(simple)return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-mes">${mb}</td><td class="td-estado">${eb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
+    return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-carp">${r.carpeta||''}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-mes">${mb}</td><td class="td-estado">${eb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
   }).join('');
 }
 
@@ -383,22 +568,34 @@ async function descargar(){
   document.getElementById('progMsg').textContent='Generando Excel con formato...';
   document.getElementById('progBar').classList.add('show');
   try{
+    // Aplicar decisiones a los datos antes de descargar
+    const ok=[], dif=[], reajuste=[], res=resultData.res||[], caja=resultData.caja||[];
+    (resultData.carpetas||[]).forEach(c=>{
+      const dec=decisiones[c.carpeta]||{clasificacion:c.propuesta||'dif',mes:c.mes,obs:''};
+      c.pagos.forEach(p=>{
+        const item={...p, carpeta:c.carpeta, mes:dec.mes||c.mes, obs:dec.obs||''};
+        if(dec.clasificacion==='ok'){item.estado='OK';ok.push(item);}
+        else if(dec.clasificacion==='reajuste'){item.estado='⚠️ REAJUSTE PENDIENTE';reajuste.push(item);}
+        else if(dec.clasificacion==='caja'){item.estado='RECUPERACIÓN CAJA';caja.push(item);}
+        else{
+          const diff=c.diff;
+          item.estado=diff>0?`▲ DE MÁS +$${fmt(diff)}`:`▼ DE MENOS -$${fmt(Math.abs(diff))}`;
+          dif.push(item);
+        }
+      });
+    });
+
     const fd=new FormData();
     fd.append('historial',h);
-    fd.append('data',JSON.stringify({
-      ok:   resultData.ok   ||[],
-      dif:  resultData.dif  ||[],
-      res:  resultData.res  ||[],
-      caja: resultData.caja ||[]
-    }));
+    fd.append('data',JSON.stringify({ok,dif,reajuste,res,caja}));
     const resp=await fetch('/descargar',{method:'POST',body:fd});
     if(!resp.ok){const d=await resp.json();alert('Error: '+d.error);return;}
     const blob=await resp.blob();
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     const hoy=new Date().toISOString().slice(0,10);
-    a.href=url; a.download=`Historial_2026_Actualizado_${hoy}.xlsx`;
-    a.click(); URL.revokeObjectURL(url);
+    a.href=url;a.download=`Historial_2026_Actualizado_${hoy}.xlsx`;
+    a.click();URL.revokeObjectURL(url);
   }catch(e){alert('Error al descargar: '+e.message);}
   finally{document.getElementById('progBar').classList.remove('show');}
 }
@@ -411,7 +608,7 @@ function resetear(){
   document.getElementById('btnDescargar').classList.add('hidden');
   document.getElementById('btnReset').classList.add('hidden');
   document.getElementById('updateInfo').style.display='none';
-  resultData=null;
+  resultData=null;decisiones={};
   checkReady();
   window.scrollTo({top:0,behavior:'smooth'});
 }
