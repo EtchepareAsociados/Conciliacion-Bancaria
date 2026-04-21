@@ -164,96 +164,31 @@ def detectar_mes(abonos):
 # ── Propuesta inteligente por carpeta ──
 def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola):
     """
-    Dada una carpeta con sus pagos del período, propone la clasificación.
-    Retorna lista de registros con clasificación propuesta para cada pago.
+    Lógica simple: cada pago = un mes. Se informa la diferencia real.
+    Sin ratios ni inferencias. El usuario decide qué significa cada diferencia.
     """
-    total_pagado = sum(p['monto'] for p in pagos)
-    diff = total_pagado - monto_esp
     resultado = []
+    mes_actual = sig_mes(ultimo_mes_rut) or mes_cartola
 
-    if len(pagos) == 1:
-        pago = pagos[0]
-        ratio = pago['monto'] / monto_esp if monto_esp > 0 else 1
+    for pago in pagos:
+        diff = pago['monto'] - monto_esp
 
-        if ratio >= 0.95 and ratio <= 1.05:
-            # Pago exacto o casi exacto → OK
-            mes = sig_mes(ultimo_mes_rut) or mes_cartola
-            resultado.append({**pago, 'carpeta': carpeta_id,
-                'mes': mes, 'estado': 'OK', 'diff': diff,
-                'clasificacion': 'ok', 'obs': ''})
-
-        elif ratio < 0.30:
-            # Monto muy pequeño → probablemente reajuste
-            mes = sig_mes(ultimo_mes_rut) or mes_cartola
-            resultado.append({**pago, 'carpeta': carpeta_id,
-                'mes': mes, 'estado': f'⚠️ REAJUSTE -${abs(diff):,.0f}',
-                'clasificacion': 'reajuste', 'obs': 'Posible reajuste pendiente'})
-
+        if diff == 0:
+            estado       = 'OK'
+            clasificacion = 'ok'
+        elif diff > 0:
+            estado       = f'▲ DE MÁS +${diff:,.0f}'
+            clasificacion = 'dif'
         else:
-            # Diferencia significativa
-            mes = sig_mes(ultimo_mes_rut) or mes_cartola
-            label = f"▲ DE MÁS +${diff:,.0f}" if diff > 0 else f"▼ DE MENOS -${abs(diff):,.0f}"
-            resultado.append({**pago, 'carpeta': carpeta_id,
-                'mes': mes, 'estado': label,
-                'clasificacion': 'dif', 'obs': ''})
+            estado       = f'▼ DE MENOS -${abs(diff):,.0f}'
+            clasificacion = 'dif'
 
-    else:
-        # Múltiples pagos — acumular y evaluar
-        mes_base = sig_mes(ultimo_mes_rut) or mes_cartola
-        mes_actual = mes_base
+        resultado.append({**pago, 'carpeta': carpeta_id,
+            'mes': mes_actual, 'estado': estado,
+            'clasificacion': clasificacion, 'obs': ''})
 
-        if abs(diff) <= TOLERANCIA:
-            # La suma de todos los pagos cubre el arriendo → todos son abonos del mismo mes
-            for i, pago in enumerate(pagos):
-                clasificacion = 'ok' if i == len(pagos)-1 else 'ok'
-                obs = 'Pago fraccionado' if len(pagos) > 1 else ''
-                resultado.append({**pago, 'carpeta': carpeta_id,
-                    'mes': mes_actual, 'estado': 'OK', 'diff': 0,
-                    'clasificacion': 'ok', 'obs': obs})
-
-        else:
-            # Pagos múltiples con diferencia — asignar mes a cada uno inteligentemente
-            acumulado = 0
-            mes_cubierto = False
-            for pago in pagos:
-                acumulado += pago['monto']
-                ratio_acum = acumulado / monto_esp if monto_esp > 0 else 1
-                ratio_indiv = pago['monto'] / monto_esp if monto_esp > 0 else 1
-
-                if not mes_cubierto and ratio_acum >= 0.95:
-                    # Con este pago se completa el mes
-                    mes_cubierto = True
-                    resultado.append({**pago, 'carpeta': carpeta_id,
-                        'mes': mes_actual, 'estado': 'OK', 'diff': acumulado - monto_esp,
-                        'clasificacion': 'ok', 'obs': 'Pago fraccionado - completa mes'})
-                elif not mes_cubierto and ratio_indiv < 0.30:
-                    # Pago pequeño antes de cubrir → reajuste
-                    resultado.append({**pago, 'carpeta': carpeta_id,
-                        'mes': mes_actual, 'estado': f'⚠️ REAJUSTE',
-                        'clasificacion': 'reajuste', 'obs': 'Posible reajuste pendiente'})
-                elif not mes_cubierto:
-                    # Abono parcial
-                    falta = monto_esp - acumulado
-                    resultado.append({**pago, 'carpeta': carpeta_id,
-                        'mes': mes_actual, 'estado': f'▼ DE MENOS -${falta:,.0f}',
-                        'clasificacion': 'dif', 'obs': f'Abono parcial, falta ${falta:,.0f}'})
-                else:
-                    # Mes ya cubierto → siguiente mes
-                    mes_actual = sig_mes(mes_actual) or mes_actual
-                    if ratio_indiv < 0.30:
-                        resultado.append({**pago, 'carpeta': carpeta_id,
-                            'mes': mes_actual, 'estado': '⚠️ REAJUSTE',
-                            'clasificacion': 'reajuste', 'obs': 'Posible reajuste próx. mes'})
-                    elif abs(pago['monto'] - monto_esp) <= TOLERANCIA:
-                        resultado.append({**pago, 'carpeta': carpeta_id,
-                            'mes': mes_actual, 'estado': 'OK', 'diff': 0,
-                            'clasificacion': 'ok', 'obs': ''})
-                    else:
-                        diff2 = pago['monto'] - monto_esp
-                        label = f"▲ DE MÁS +${diff2:,.0f}" if diff2>0 else f"▼ DE MENOS -${abs(diff2):,.0f}"
-                        resultado.append({**pago, 'carpeta': carpeta_id,
-                            'mes': mes_actual, 'estado': label,
-                            'clasificacion': 'dif', 'obs': ''})
+        # Cada pago avanza un mes
+        mes_actual = sig_mes(mes_actual) or mes_actual
 
     return resultado
 
@@ -339,6 +274,9 @@ def procesar(hist_wb, cartola_wb):
             info['ultimo_mes'], mes_cartola
         )
         estado_prop = propuestas[0]['clasificacion'] if propuestas else 'dif'
+        # Solo incluir en vista si hay algo que revisar (no las OK exactas)
+        if estado_prop == 'ok' and len(info['pagos']) == 1:
+            continue
         vista_carpetas.append({
             'carpeta':   cid,
             'rut':       info['rut'],
