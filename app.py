@@ -183,6 +183,9 @@ def procesar(hist_wb, cartola_wb):
     res_res  = []   # Reservas (incluye lo que antes era efectivo-cheque)
     res_caja = []   # Recuperación caja
 
+    # Copia local del último mes para ir avanzando dentro de esta misma cartola
+    ultimo_mes_local = dict(ultimo_mes)
+
     for a in abonos:
         key = f"{a['rut_norm']}|{a['monto']}|{a['fecha']}"
         if key in hist_keys: continue
@@ -206,13 +209,16 @@ def procesar(hist_wb, cartola_wb):
 
         if not match:
             # Sin match en BD arrendatarios → Reserva
-            # (incluye efectivo-cheque, sin RUT, etc.)
             res_res.append({**base, 'carpeta': '', 'estado': 'RESERVA'})
             continue
 
-        ult = ultimo_mes.get(a['rut_norm'], '')
+        # Calcular mes: usar último mes local (que ya avanza si hay múltiples pagos del mismo RUT)
+        ult = ultimo_mes_local.get(a['rut_norm'], '')
         mes = sig_mes(ult) or mes_cartola
         carpeta = str(match['CARPETA'])
+
+        # Actualizar último mes local para que el siguiente pago de este RUT avance un mes más
+        ultimo_mes_local[a['rut_norm']] = mes
 
         if match['tipo'] == 'OK':
             res_ok.append({**base, 'carpeta': carpeta, 'mes': mes, 'estado': 'OK', 'diff': match['diff']})
