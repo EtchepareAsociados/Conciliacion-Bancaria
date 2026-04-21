@@ -237,15 +237,31 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
                     mes_cerrado = True
                 continue
 
-            # Intentar acumular para el mes actual
+            # Acumular para el mes actual
             acumulado_mes    += total_grupo
             pagos_mes_actual += grupo
             ratio_acum = acumulado_mes / monto_esp if monto_esp > 0 else 1
 
-            if ratio_acum >= 0.70:
+            # Solo cerrar el mes si:
+            # 1. Ya cubrimos >= 100% (pagó completo o de más), O
+            # 2. Llevamos acumulado >= 70% Y el siguiente grupo de fechas también es >= 70% individualmente
+            #    (en ese caso el siguiente sería otro mes, no complemento)
+            # En todos los demás casos seguimos acumulando
+            if ratio_acum >= 1.0:
                 cerrar_mes_actual()
                 mes_cerrado = True
-            # Si no llegamos al 70%, seguimos acumulando en el próximo grupo de fechas
+            elif ratio_acum >= 0.70:
+                # Revisar si hay más pagos — si los hay, seguir acumulando para ver si completan mejor
+                # Solo cerrar si este es el último grupo o el siguiente supera solo el 70%
+                fechas_list = list(grupos_fecha.keys())
+                idx_actual  = fechas_list.index(fecha)
+                hay_mas     = idx_actual < len(fechas_list) - 1
+
+                if not hay_mas:
+                    # Último grupo, cerrar con lo que hay
+                    cerrar_mes_actual()
+                    mes_cerrado = True
+                # Si hay más pagos, seguir acumulando (no cerrar aún)
         else:
             # Mes ya cerrado — evaluar cada pago individualmente
             for pago in grupo:
