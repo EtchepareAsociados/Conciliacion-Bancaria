@@ -11,7 +11,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'etchepare2026conciliacion')
 
 # ── Usuarios permitidos ──
 USUARIOS = {
-    os.environ.get('USER1_NAME', 'admin'):    os.environ.get('USER1_PASS', 'etchepare2026'),
+    os.environ.get('USER1_NAME', 'admin'):     os.environ.get('USER1_PASS', 'etchepare2026'),
     os.environ.get('USER2_NAME', 'compañera'): os.environ.get('USER2_PASS', 'etchepare2026b'),
 }
 
@@ -61,7 +61,7 @@ def sig_mes(p):
     u = str(p).strip().upper()
     return MESES[(MESES.index(u)+1)%12] if u in MESES else ''
 
-# ── Load BD ──
+# ── Load BD arrendatarios ──
 def load_bd():
     bd_path = os.path.join(os.path.dirname(__file__), 'bd_arrendatarios.json')
     with open(bd_path, encoding='utf-8') as f:
@@ -73,7 +73,22 @@ def load_bd():
             lookup.setdefault(k, []).append(r)
     return lookup
 
-BD_LOOKUP = load_bd()
+# ── Load BD recuperacion caja ──
+def load_bd_caja():
+    bd_path = os.path.join(os.path.dirname(__file__), 'bd_recuperacion_caja.json')
+    if not os.path.exists(bd_path):
+        return {}
+    with open(bd_path, encoding='utf-8') as f:
+        records = json.load(f)
+    lookup = {}
+    for r in records:
+        k = norm_rut(r.get('RESPONSABLE',''))
+        if k:
+            lookup.setdefault(k, []).append(r)
+    return lookup
+
+BD_LOOKUP      = load_bd()
+BD_CAJA_LOOKUP = load_bd_caja()
 
 def find_match(rut_norm, monto):
     if not rut_norm or rut_norm not in BD_LOOKUP: return None
@@ -88,15 +103,27 @@ def find_match(rut_norm, monto):
     diff = monto - best['MONTO_ESP']
     return {**best, 'tipo':'DIF+' if diff>0 else 'DIF-', 'diff':diff}
 
+def find_match_caja(rut_norm, monto):
+    if not rut_norm or rut_norm not in BD_CAJA_LOOKUP: return None
+    cands = BD_CAJA_LOOKUP[rut_norm]
+    for c in cands:
+        if c.get('MONTO_ESP') == monto:
+            return {**c, 'tipo':'CAJA'}
+    # Si no hay monto exacto, retornar el primero del RUT
+    return {**cands[0], 'tipo':'CAJA'}
+
 # ── Parse historial ──
 def parse_historial(wb):
     keys = set()
     ultimo_mes = {}
+    # Pestañas relevantes (sin SIN ADM ni EFECTIVO-CHEQUE)
+    sheets_validas = ['ARRIENDOS', 'ARRIENDOS OK', 'ARRIENDOS CON DIFERENCIAS',
+                      'RESERVAS', 'RECUPERACIÓN CAJA']
     for sname in wb.sheetnames:
         if sname == 'RESUMEN': continue
+        if sname not in sheets_validas: continue
         ws = wb[sname]
         rows = list(ws.iter_rows(values_only=True))
-        # Find header row
         data_start = 1
         for i, row in enumerate(rows[:5]):
             if row and str(row[0]).strip().upper() == 'FECHA':
@@ -130,10 +157,12 @@ def parse_cartola(wb):
         desc  = str(row[1]).strip() if row[1] else ''
         fecha = str(row[3]).strip() if row[3] else ''
         ndoc  = str(row[4]).strip() if row[4] else ''
+        # Guardar índice para mantener orden de cartola
         abonos.append({
             'monto': monto, 'desc': desc, 'fecha': fecha, 'ndoc': ndoc,
             'rut': extract_rut(desc), 'rut_norm': norm_rut(extract_rut(desc)),
-            'ef': es_efectivo(desc)
+            'ef': es_efectivo(desc),
+            'idx': len(abonos)  # orden original de la cartola
         })
     return abonos
 
@@ -142,14 +171,17 @@ def procesar(hist_wb, cartola_wb):
     hist_keys, ultimo_mes = parse_historial(hist_wb)
     abonos = parse_cartola(cartola_wb)
 
-    # Detect month
+    # Detectar mes de la cartola
     mes_cartola = ''
     fechas = [a['fecha'] for a in abonos if a['fecha']]
     if fechas:
         try: mes_cartola = MESES[int(fechas[0].split('/')[1])-1]
         except: pass
 
-    res_ok, res_dif, res_res, res_efec = [], [], [], []
+    res_ok   = []   # Arriendos OK
+    res_dif  = []   # Arriendos con diferencias
+    res_res  = []   # Reservas (incluye lo que antes era efectivo-cheque)
+    res_caja = []   # Recuperación caja
 
     for a in abonos:
         key = f"{a['rut_norm']}|{a['monto']}|{a['fecha']}"
@@ -158,16 +190,24 @@ def procesar(hist_wb, cartola_wb):
         base = {
             'fecha': a['fecha'], 'rut': a['rut'] or 'Sin RUT',
             'monto': a['monto'], 'desc': a['desc'][:55],
-            'ndoc': a['ndoc'], 'mes': mes_cartola
+            'ndoc': a['ndoc'], 'mes': mes_cartola,
+            'idx': a['idx']  # conservar orden de cartola
         }
 
-        if a['ef'] and not a['rut']:
-            res_efec.append({**base, 'carpeta':'', 'estado':'EFECTIVO'})
+        # 1. Primero verificar si es recuperación de caja
+        match_caja = find_match_caja(a['rut_norm'], a['monto'])
+        if match_caja:
+            carpeta = str(match_caja.get('CARPETA', ''))
+            res_caja.append({**base, 'carpeta': carpeta, 'estado': 'RECUPERACIÓN CAJA'})
             continue
 
+        # 2. Verificar si es arrendatario
         match = find_match(a['rut_norm'], a['monto'])
+
         if not match:
-            res_res.append({**base, 'carpeta':'', 'estado':'RESERVA'})
+            # Sin match en BD arrendatarios → Reserva
+            # (incluye efectivo-cheque, sin RUT, etc.)
+            res_res.append({**base, 'carpeta': '', 'estado': 'RESERVA'})
             continue
 
         ult = ultimo_mes.get(a['rut_norm'], '')
@@ -175,93 +215,150 @@ def procesar(hist_wb, cartola_wb):
         carpeta = str(match['CARPETA'])
 
         if match['tipo'] == 'OK':
-            res_ok.append({**base, 'carpeta':carpeta, 'mes':mes, 'estado':'OK', 'diff':match['diff']})
+            res_ok.append({**base, 'carpeta': carpeta, 'mes': mes, 'estado': 'OK', 'diff': match['diff']})
         else:
-            diff = match['diff']
+            diff  = match['diff']
             label = f"▲ DE MÁS +${diff:,.0f}" if diff > 0 else f"▼ DE MENOS -${abs(diff):,.0f}"
-            res_dif.append({**base, 'carpeta':carpeta, 'mes':mes, 'estado':label, 'diff':diff})
+            res_dif.append({**base, 'carpeta': carpeta, 'mes': mes, 'estado': label, 'diff': diff})
 
-    return res_ok, res_dif, res_res, res_efec, mes_cartola
+    # Ordenar todos por orden de aparición en la cartola (fecha original)
+    res_ok   = sorted(res_ok,   key=lambda x: x['idx'])
+    res_dif  = sorted(res_dif,  key=lambda x: x['idx'])
+    res_res  = sorted(res_res,  key=lambda x: x['idx'])
+    res_caja = sorted(res_caja, key=lambda x: x['idx'])
 
-# ── Generate Excel with full formatting ──
-def generar_excel(hist_wb, res_ok, res_dif, res_res, res_efec):
-    SHEET_MAP = {
-        'ARRIENDOS':      ([*res_ok, *res_dif], True,  '2563EB'),
-        'RESERVAS':       (res_res,              False, 'D97706'),
-        'EFECTIVO-CHEQUE':(res_efec,             False, 'CA8A04'),
-    }
+    return res_ok, res_dif, res_res, res_caja, mes_cartola
 
-    for sheet_name, (rows, has_carpeta, accent) in SHEET_MAP.items():
-        if not rows: continue
-        if sheet_name not in hist_wb.sheetnames: continue
-        ws = hist_wb[sheet_name]
+# ── Escribir filas en una hoja ──
+def escribir_filas(ws, rows, has_carpeta=True):
+    last_row = ws.max_row
+    while last_row > 3 and ws.cell(last_row, 1).value in [None, '']:
+        last_row -= 1
 
-        # Find last row with data
-        last_row = ws.max_row
-        while last_row > 3 and ws.cell(last_row, 1).value in [None, '']:
-            last_row -= 1
+    for row_data in rows:
+        last_row += 1
+        row_bg = C_GRAY_H if last_row % 2 == 0 else C_WHITE
 
-        for row_data in rows:
-            last_row += 1
-            row_bg = C_GRAY_H if last_row % 2 == 0 else C_WHITE
+        if has_carpeta:
+            vals = [row_data['fecha'], row_data.get('carpeta',''),
+                    row_data['rut'], row_data['desc'],
+                    row_data['monto'], row_data.get('mes',''),
+                    row_data['estado'], '']
+        else:
+            vals = [row_data['fecha'], '',
+                    row_data['rut'], row_data['desc'],
+                    row_data['monto'], row_data.get('mes',''),
+                    row_data['estado'], '']
 
-            if has_carpeta:
-                vals = [row_data['fecha'], row_data.get('carpeta',''),
-                        row_data['rut'], row_data['desc'],
-                        row_data['monto'], row_data.get('mes',''),
-                        row_data['estado'], '']
-            else:
-                vals = [row_data['fecha'], '',
-                        row_data['rut'], row_data['desc'],
-                        row_data['monto'], row_data.get('mes',''),
-                        row_data['estado'], '']
+        for col, val in enumerate(vals, 1):
+            c = ws.cell(row=last_row, column=col, value=val)
+            c.fill   = PatternFill('solid', fgColor=row_bg)
+            c.border = Border(bottom=Side(style='thin', color='E2E8F0'),
+                              left=Side(style='thin',   color='E2E8F0'),
+                              right=Side(style='thin',  color='E2E8F0'))
+            c.font      = Font(name='Calibri', size=9, color=C_BLACK)
+            c.alignment = Alignment(vertical='center')
 
-            for col, val in enumerate(vals, 1):
-                c = ws.cell(row=last_row, column=col, value=val)
-                c.fill   = PatternFill('solid', fgColor=row_bg)
-                c.border = Border(bottom=Side(style='thin',color='E2E8F0'),
-                                  left=Side(style='thin',color='E2E8F0'),
-                                  right=Side(style='thin',color='E2E8F0'))
-                c.font   = Font(name='Calibri', size=9, color=C_BLACK)
-                c.alignment = Alignment(vertical='center')
+        # FECHA
+        ws.cell(last_row, 1).alignment = Alignment(horizontal='center', vertical='center')
+        # CARPETA
+        ws.cell(last_row, 2).font      = Font(name='Calibri', bold=True, size=10, color=C_NAVY)
+        ws.cell(last_row, 2).alignment = Alignment(horizontal='center', vertical='center')
+        # RUT
+        ws.cell(last_row, 3).font      = Font(name='Courier New', size=9, color=C_BLACK)
+        ws.cell(last_row, 3).alignment = Alignment(horizontal='center', vertical='center')
+        # MONTO
+        mc = ws.cell(last_row, 5)
+        mc.font          = Font(name='Courier New', bold=True, size=9, color=C_BLACK)
+        mc.number_format = '#,##0'
+        mc.alignment     = Alignment(horizontal='right', vertical='center')
+        # PERÍODO
+        pc  = ws.cell(last_row, 6)
+        per = str(pc.value).strip().upper() if pc.value else ''
+        if per in MES_BG:
+            pc.fill = PatternFill('solid', fgColor=MES_BG[per])
+            pc.font = Font(name='Calibri', bold=True, size=8, color=MES_FG.get(per, C_BLACK))
+        else:
+            pc.font = Font(name='Calibri', size=8, color=C_BLACK)
+        pc.alignment = Alignment(horizontal='center', vertical='center')
+        # ESTADO
+        ec     = ws.cell(last_row, 7)
+        estado = str(ec.value) if ec.value else ''
+        if estado.startswith('▲'):
+            ec.font = Font(name='Calibri', bold=True, size=8, color='1D4ED8')
+            ec.fill = PatternFill('solid', fgColor='DBEAFE')
+        elif estado.startswith('▼'):
+            ec.font = Font(name='Calibri', bold=True, size=8, color='991B1B')
+            ec.fill = PatternFill('solid', fgColor='FEE2E2')
+        elif estado in ('OK',):
+            ec.font = Font(name='Calibri', bold=True, size=8, color='14532D')
+            ec.fill = PatternFill('solid', fgColor='DCFCE7')
+        elif estado == 'RECUPERACIÓN CAJA':
+            ec.font = Font(name='Calibri', bold=True, size=8, color='7C2D12')
+            ec.fill = PatternFill('solid', fgColor='FED7AA')
+        ec.alignment = Alignment(horizontal='center', vertical='center')
+        # OBS
+        ws.cell(last_row, 8).font = Font(name='Calibri', size=8, color=C_MUTED, italic=True)
 
-            # FECHA
-            ws.cell(last_row,1).alignment = Alignment(horizontal='center',vertical='center')
-            # CARPETA
-            ws.cell(last_row,2).font = Font(name='Calibri',bold=True,size=10,color=C_NAVY)
-            ws.cell(last_row,2).alignment = Alignment(horizontal='center',vertical='center')
-            # RUT
-            ws.cell(last_row,3).font = Font(name='Courier New',size=9,color=C_BLACK)
-            ws.cell(last_row,3).alignment = Alignment(horizontal='center',vertical='center')
-            # MONTO
-            mc = ws.cell(last_row,5)
-            mc.font = Font(name='Courier New',bold=True,size=9,color=C_BLACK)
-            mc.number_format = '#,##0'
-            mc.alignment = Alignment(horizontal='right',vertical='center')
-            # PERÍODO
-            pc = ws.cell(last_row,6)
-            per = str(pc.value).strip().upper() if pc.value else ''
-            if per in MES_BG:
-                pc.fill = PatternFill('solid',fgColor=MES_BG[per])
-                pc.font = Font(name='Calibri',bold=True,size=8,color=MES_FG.get(per,C_BLACK))
-            else:
-                pc.font = Font(name='Calibri',size=8,color=C_BLACK)
-            pc.alignment = Alignment(horizontal='center',vertical='center')
-            # ESTADO
-            ec = ws.cell(last_row,7)
-            estado = str(ec.value) if ec.value else ''
-            if estado.startswith('▲'):
-                ec.font = Font(name='Calibri',bold=True,size=8,color='1D4ED8')
-                ec.fill = PatternFill('solid',fgColor='DBEAFE')
-            elif estado.startswith('▼'):
-                ec.font = Font(name='Calibri',bold=True,size=8,color='991B1B')
-                ec.fill = PatternFill('solid',fgColor='FEE2E2')
-            elif estado == 'OK':
-                ec.font = Font(name='Calibri',bold=True,size=8,color='14532D')
-                ec.fill = PatternFill('solid',fgColor='DCFCE7')
-            ec.alignment = Alignment(horizontal='center',vertical='center')
-            # OBS
-            ws.cell(last_row,8).font = Font(name='Calibri',size=8,color=C_MUTED,italic=True)
+# ── Clonar encabezado de una hoja existente ──
+def clonar_encabezado(wb, origen_name, destino_ws, nuevo_titulo):
+    if origen_name not in wb.sheetnames:
+        return
+    ws_orig = wb[origen_name]
+    # Copiar filas 1-3 (título, vacía, encabezados)
+    for row_idx in range(1, 4):
+        for col_idx in range(1, 9):
+            src = ws_orig.cell(row=row_idx, column=col_idx)
+            dst = destino_ws.cell(row=row_idx, column=col_idx)
+            dst.value = src.value
+            if src.has_style:
+                dst.font      = src.font.copy()
+                dst.fill      = src.fill.copy()
+                dst.border    = src.border.copy()
+                dst.alignment = src.alignment.copy()
+                dst.number_format = src.number_format
+    # Cambiar título de la fila 1
+    destino_ws.cell(row=1, column=1).value = nuevo_titulo
+    # Copiar anchos de columna
+    for col_idx in range(1, 9):
+        col_letter = get_column_letter(col_idx)
+        if col_letter in ws_orig.column_dimensions:
+            destino_ws.column_dimensions[col_letter].width = ws_orig.column_dimensions[col_letter].width
+
+# ── Generate Excel ──
+def generar_excel(hist_wb, res_ok, res_dif, res_res, res_caja):
+    # ── Eliminar hojas que ya no se usan ──
+    for eliminar in ['SIN ADM', 'EFECTIVO-CHEQUE']:
+        if eliminar in hist_wb.sheetnames:
+            del hist_wb[eliminar]
+
+    # ── Renombrar ARRIENDOS → ARRIENDOS OK ──
+    if 'ARRIENDOS' in hist_wb.sheetnames:
+        hist_wb['ARRIENDOS'].title = 'ARRIENDOS OK'
+
+    # ── Crear hoja ARRIENDOS CON DIFERENCIAS si no existe ──
+    if 'ARRIENDOS CON DIFERENCIAS' not in hist_wb.sheetnames:
+        ws_dif = hist_wb.create_sheet('ARRIENDOS CON DIFERENCIAS', 2)
+        clonar_encabezado(hist_wb, 'ARRIENDOS OK', ws_dif, 'Arriendos con Diferencias 2026')
+    
+    # ── Ordenar pestañas: RESUMEN, ARRIENDOS OK, ARRIENDOS CON DIFERENCIAS, RESERVAS, RECUPERACIÓN CAJA ──
+    orden_deseado = ['RESUMEN', 'ARRIENDOS OK', 'ARRIENDOS CON DIFERENCIAS', 'RESERVAS', 'RECUPERACIÓN CAJA']
+    for i, nombre in enumerate(orden_deseado):
+        if nombre in hist_wb.sheetnames:
+            hist_wb.move_sheet(nombre, offset=hist_wb.sheetnames.index(nombre) * -1 + i)
+
+    # ── Escribir datos en cada hoja ──
+    if res_ok and 'ARRIENDOS OK' in hist_wb.sheetnames:
+        escribir_filas(hist_wb['ARRIENDOS OK'], res_ok, has_carpeta=True)
+
+    if res_dif and 'ARRIENDOS CON DIFERENCIAS' in hist_wb.sheetnames:
+        escribir_filas(hist_wb['ARRIENDOS CON DIFERENCIAS'], res_dif, has_carpeta=True)
+
+    if res_res and 'RESERVAS' in hist_wb.sheetnames:
+        escribir_filas(hist_wb['RESERVAS'], res_res, has_carpeta=False)
+
+    if res_caja and 'RECUPERACIÓN CAJA' in hist_wb.sheetnames:
+        escribir_filas(hist_wb['RECUPERACIÓN CAJA'], res_caja, has_carpeta=True)
 
     output = io.BytesIO()
     hist_wb.save(output)
@@ -302,15 +399,15 @@ def procesar_route():
         hist_wb    = load_workbook(hist_file)
         cartola_wb = load_workbook(cartola_file)
 
-        res_ok, res_dif, res_res, res_efec, mes = procesar(hist_wb, cartola_wb)
+        res_ok, res_dif, res_res, res_caja, mes = procesar(hist_wb, cartola_wb)
 
         return jsonify({
-            'ok':     res_ok,
-            'dif':    res_dif,
-            'res':    res_res,
-            'efec':   res_efec,
-            'mes':    mes,
-            'total':  len(res_ok)+len(res_dif)+len(res_res)+len(res_efec)
+            'ok':    res_ok,
+            'dif':   res_dif,
+            'res':   res_res,
+            'caja':  res_caja,
+            'mes':   mes,
+            'total': len(res_ok) + len(res_dif) + len(res_res) + len(res_caja)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -325,17 +422,18 @@ def descargar_route():
         if not hist_file:
             return jsonify({'error': 'Falta historial'}), 400
 
-        hist_wb = load_workbook(hist_file)
-        res_ok  = data.get('ok',  [])
-        res_dif = data.get('dif', [])
-        res_res = data.get('res', [])
-        res_efec= data.get('efec',[])
+        hist_wb  = load_workbook(hist_file)
+        res_ok   = data.get('ok',   [])
+        res_dif  = data.get('dif',  [])
+        res_res  = data.get('res',  [])
+        res_caja = data.get('caja', [])
 
-        output = generar_excel(hist_wb, res_ok, res_dif, res_res, res_efec)
+        output = generar_excel(hist_wb, res_ok, res_dif, res_res, res_caja)
 
         from datetime import date
         filename = f"Historial_2026_Actualizado_{date.today().isoformat()}.xlsx"
-        return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        return send_file(output,
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                          as_attachment=True, download_name=filename)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
