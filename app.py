@@ -1,6 +1,5 @@
-import os, re, json, io
+import os, re, json, io, datetime
 from flask import Flask, render_template, request, jsonify, send_file, session
-from werkzeug.utils import secure_filename
 import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -9,7 +8,6 @@ from openpyxl.utils import get_column_letter
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'etchepare2026conciliacion')
 
-# ── Usuarios permitidos ──
 USUARIOS = {
     os.environ.get('USER1_NAME', 'admin'):     os.environ.get('USER1_PASS', 'etchepare2026'),
     os.environ.get('USER2_NAME', 'compañera'): os.environ.get('USER2_PASS', 'etchepare2026b'),
@@ -29,18 +27,22 @@ MES_FG = {'ENERO':'1E3A8A','FEBRERO':'075985','MARZO':'14532D','ABRIL':'713F12',
 C_NAVY  = '1F3864'
 C_WHITE = 'FFFFFF'
 C_GRAY_H= 'F8FAFC'
-C_GRAY_A= 'F1F5F9'
 C_GRAY_B= 'CBD5E1'
 C_BLACK = '1E293B'
 C_MUTED = '475569'
 
-def thin_border(c=C_GRAY_B):
-    s = Side(style='thin', color=c)
-    return Border(left=s, right=s, top=s, bottom=s)
+# ── Archivo de decisiones persistentes ──
+DECISIONES_PATH = os.path.join(os.path.dirname(__file__), 'decisiones.json')
 
-def medium_bottom(bc=C_NAVY, sc=C_GRAY_B):
-    return Border(left=Side(style='thin',color=sc), right=Side(style='thin',color=sc),
-                  top=Side(style='thin',color=sc), bottom=Side(style='medium',color=bc))
+def load_decisiones():
+    if not os.path.exists(DECISIONES_PATH):
+        return {}
+    with open(DECISIONES_PATH, encoding='utf-8') as f:
+        return json.load(f)
+
+def save_decisiones(d):
+    with open(DECISIONES_PATH, 'w', encoding='utf-8') as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
 
 # ── Helpers ──
 def extract_rut(desc):
@@ -52,16 +54,12 @@ def norm_rut(r):
     if not r: return None
     return str(r).strip().replace('.','').replace('-','').upper().lstrip('0')
 
-def es_efectivo(desc):
-    if not desc: return False
-    return any(x in str(desc).upper() for x in ['DEPOS.DOCTO','DEPOSITO EFECTIVO','DOCTO.O.BANCOS'])
-
 def sig_mes(p):
     if not p: return ''
     u = str(p).strip().upper()
     return MESES[(MESES.index(u)+1)%12] if u in MESES else ''
 
-# ── Load BD arrendatarios ──
+# ── Load BDs ──
 def load_bd():
     bd_path = os.path.join(os.path.dirname(__file__), 'bd_arrendatarios.json')
     with open(bd_path, encoding='utf-8') as f:
@@ -73,7 +71,6 @@ def load_bd():
             lookup.setdefault(k, []).append(r)
     return lookup
 
-# ── Load BD recuperacion caja ──
 def load_bd_caja():
     bd_path = os.path.join(os.path.dirname(__file__), 'bd_recuperacion_caja.json')
     if not os.path.exists(bd_path):
@@ -103,25 +100,18 @@ def find_match(rut_norm, monto):
     diff = monto - best['MONTO_ESP']
     return {**best, 'tipo':'DIF+' if diff>0 else 'DIF-', 'diff':diff}
 
-def find_match_caja(rut_norm, monto):
+def find_match_caja(rut_norm):
     if not rut_norm or rut_norm not in BD_CAJA_LOOKUP: return None
-    cands = BD_CAJA_LOOKUP[rut_norm]
-    for c in cands:
-        if c.get('MONTO_ESP') == monto:
-            return {**c, 'tipo':'CAJA'}
-    # Si no hay monto exacto, retornar el primero del RUT
-    return {**cands[0], 'tipo':'CAJA'}
+    return BD_CAJA_LOOKUP[rut_norm][0]
 
 # ── Parse historial ──
 def parse_historial(wb):
     keys = set()
     ultimo_mes = {}
-    # Pestañas relevantes (sin SIN ADM ni EFECTIVO-CHEQUE)
-    sheets_validas = ['ARRIENDOS', 'ARRIENDOS OK', 'ARRIENDOS CON DIFERENCIAS',
-                      'RESERVAS', 'RECUPERACIÓN CAJA']
+    sheets_validas = ['ARRIENDOS','ARRIENDOS OK','ARRIENDOS CON DIFERENCIAS',
+                      'REAJUSTES PENDIENTES','RESERVAS','RECUPERACIÓN CAJA']
     for sname in wb.sheetnames:
-        if sname == 'RESUMEN': continue
-        if sname not in sheets_validas: continue
+        if sname == 'RESUMEN' or sname not in sheets_validas: continue
         ws = wb[sname]
         rows = list(ws.iter_rows(values_only=True))
         data_start = 1
@@ -131,14 +121,13 @@ def parse_historial(wb):
                 break
         for row in rows[data_start:]:
             if not row or not row[0]: continue
-            fecha  = str(row[0]).strip() if row[0] else ''
-            desc   = str(row[3]).strip() if row[3] else ''
-            monto  = row[4]
-            periodo= str(row[5]).strip().upper() if row[5] else ''
-            rut    = norm_rut(extract_rut(desc))
+            fecha   = str(row[0]).strip() if row[0] else ''
+            desc    = str(row[3]).strip() if row[3] else ''
+            monto   = row[4]
+            periodo = str(row[5]).strip().upper() if row[5] else ''
+            rut     = norm_rut(extract_rut(desc))
             if fecha and monto:
-                try:
-                    keys.add(f"{rut}|{int(float(monto))}|{fecha}")
+                try: keys.add(f"{rut}|{int(float(monto))}|{fecha}")
                 except: pass
             if rut and periodo in MESES:
                 ultimo_mes[rut] = periodo
@@ -157,34 +146,128 @@ def parse_cartola(wb):
         desc  = str(row[1]).strip() if row[1] else ''
         fecha = str(row[3]).strip() if row[3] else ''
         ndoc  = str(row[4]).strip() if row[4] else ''
-        # Guardar índice para mantener orden de cartola
         abonos.append({
             'monto': monto, 'desc': desc, 'fecha': fecha, 'ndoc': ndoc,
             'rut': extract_rut(desc), 'rut_norm': norm_rut(extract_rut(desc)),
-            'ef': es_efectivo(desc),
-            'idx': len(abonos)  # orden original de la cartola
+            'idx': len(abonos)
         })
     return abonos
 
-# ── Process ──
+# ── Detectar mes cartola ──
+def detectar_mes(abonos):
+    for a in abonos:
+        if a['fecha']:
+            try: return MESES[int(a['fecha'].split('/')[1])-1]
+            except: pass
+    return ''
+
+# ── Propuesta inteligente por carpeta ──
+def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola):
+    """
+    Dada una carpeta con sus pagos del período, propone la clasificación.
+    Retorna lista de registros con clasificación propuesta para cada pago.
+    """
+    total_pagado = sum(p['monto'] for p in pagos)
+    diff = total_pagado - monto_esp
+    resultado = []
+
+    if len(pagos) == 1:
+        pago = pagos[0]
+        ratio = pago['monto'] / monto_esp if monto_esp > 0 else 1
+
+        if ratio >= 0.95 and ratio <= 1.05:
+            # Pago exacto o casi exacto → OK
+            mes = sig_mes(ultimo_mes_rut) or mes_cartola
+            resultado.append({**pago, 'carpeta': carpeta_id,
+                'mes': mes, 'estado': 'OK', 'diff': diff,
+                'clasificacion': 'ok', 'obs': ''})
+
+        elif ratio < 0.30:
+            # Monto muy pequeño → probablemente reajuste
+            mes = sig_mes(ultimo_mes_rut) or mes_cartola
+            resultado.append({**pago, 'carpeta': carpeta_id,
+                'mes': mes, 'estado': f'⚠️ REAJUSTE -${abs(diff):,.0f}',
+                'clasificacion': 'reajuste', 'obs': 'Posible reajuste pendiente'})
+
+        else:
+            # Diferencia significativa
+            mes = sig_mes(ultimo_mes_rut) or mes_cartola
+            label = f"▲ DE MÁS +${diff:,.0f}" if diff > 0 else f"▼ DE MENOS -${abs(diff):,.0f}"
+            resultado.append({**pago, 'carpeta': carpeta_id,
+                'mes': mes, 'estado': label,
+                'clasificacion': 'dif', 'obs': ''})
+
+    else:
+        # Múltiples pagos — acumular y evaluar
+        mes_base = sig_mes(ultimo_mes_rut) or mes_cartola
+        mes_actual = mes_base
+
+        if abs(diff) <= TOLERANCIA:
+            # La suma de todos los pagos cubre el arriendo → todos son abonos del mismo mes
+            for i, pago in enumerate(pagos):
+                clasificacion = 'ok' if i == len(pagos)-1 else 'ok'
+                obs = 'Pago fraccionado' if len(pagos) > 1 else ''
+                resultado.append({**pago, 'carpeta': carpeta_id,
+                    'mes': mes_actual, 'estado': 'OK', 'diff': 0,
+                    'clasificacion': 'ok', 'obs': obs})
+
+        else:
+            # Pagos múltiples con diferencia — asignar mes a cada uno inteligentemente
+            acumulado = 0
+            mes_cubierto = False
+            for pago in pagos:
+                acumulado += pago['monto']
+                ratio_acum = acumulado / monto_esp if monto_esp > 0 else 1
+                ratio_indiv = pago['monto'] / monto_esp if monto_esp > 0 else 1
+
+                if not mes_cubierto and ratio_acum >= 0.95:
+                    # Con este pago se completa el mes
+                    mes_cubierto = True
+                    resultado.append({**pago, 'carpeta': carpeta_id,
+                        'mes': mes_actual, 'estado': 'OK', 'diff': acumulado - monto_esp,
+                        'clasificacion': 'ok', 'obs': 'Pago fraccionado - completa mes'})
+                elif not mes_cubierto and ratio_indiv < 0.30:
+                    # Pago pequeño antes de cubrir → reajuste
+                    resultado.append({**pago, 'carpeta': carpeta_id,
+                        'mes': mes_actual, 'estado': f'⚠️ REAJUSTE',
+                        'clasificacion': 'reajuste', 'obs': 'Posible reajuste pendiente'})
+                elif not mes_cubierto:
+                    # Abono parcial
+                    falta = monto_esp - acumulado
+                    resultado.append({**pago, 'carpeta': carpeta_id,
+                        'mes': mes_actual, 'estado': f'▼ DE MENOS -${falta:,.0f}',
+                        'clasificacion': 'dif', 'obs': f'Abono parcial, falta ${falta:,.0f}'})
+                else:
+                    # Mes ya cubierto → siguiente mes
+                    mes_actual = sig_mes(mes_actual) or mes_actual
+                    if ratio_indiv < 0.30:
+                        resultado.append({**pago, 'carpeta': carpeta_id,
+                            'mes': mes_actual, 'estado': '⚠️ REAJUSTE',
+                            'clasificacion': 'reajuste', 'obs': 'Posible reajuste próx. mes'})
+                    elif abs(pago['monto'] - monto_esp) <= TOLERANCIA:
+                        resultado.append({**pago, 'carpeta': carpeta_id,
+                            'mes': mes_actual, 'estado': 'OK', 'diff': 0,
+                            'clasificacion': 'ok', 'obs': ''})
+                    else:
+                        diff2 = pago['monto'] - monto_esp
+                        label = f"▲ DE MÁS +${diff2:,.0f}" if diff2>0 else f"▼ DE MENOS -${abs(diff2):,.0f}"
+                        resultado.append({**pago, 'carpeta': carpeta_id,
+                            'mes': mes_actual, 'estado': label,
+                            'clasificacion': 'dif', 'obs': ''})
+
+    return resultado
+
+# ── Procesar ──
 def procesar(hist_wb, cartola_wb):
     hist_keys, ultimo_mes = parse_historial(hist_wb)
     abonos = parse_cartola(cartola_wb)
+    mes_cartola = detectar_mes(abonos)
 
-    # Detectar mes de la cartola
-    mes_cartola = ''
-    fechas = [a['fecha'] for a in abonos if a['fecha']]
-    if fechas:
-        try: mes_cartola = MESES[int(fechas[0].split('/')[1])-1]
-        except: pass
-
-    res_ok   = []   # Arriendos OK
-    res_dif  = []   # Arriendos con diferencias
-    res_res  = []   # Reservas (incluye lo que antes era efectivo-cheque)
-    res_caja = []   # Recuperación caja
-
-    # Copia local del último mes para ir avanzando dentro de esta misma cartola
-    ultimo_mes_local = dict(ultimo_mes)
+    res_ok    = []
+    res_dif   = []
+    res_res   = []
+    res_caja  = []
+    carpetas  = {}  # Para vista interactiva: {carpeta_id: {info, pagos[]}}
 
     for a in abonos:
         key = f"{a['rut_norm']}|{a['monto']}|{a['fecha']}"
@@ -193,49 +276,84 @@ def procesar(hist_wb, cartola_wb):
         base = {
             'fecha': a['fecha'], 'rut': a['rut'] or 'Sin RUT',
             'monto': a['monto'], 'desc': a['desc'][:55],
-            'ndoc': a['ndoc'], 'mes': mes_cartola,
-            'idx': a['idx']  # conservar orden de cartola
+            'ndoc': a['ndoc'], 'mes': mes_cartola, 'idx': a['idx']
         }
 
-        # 1. Primero verificar si es recuperación de caja
-        match_caja = find_match_caja(a['rut_norm'], a['monto'])
+        # ¿Es dueño / recuperación caja?
+        match_caja = find_match_caja(a['rut_norm'])
         if match_caja:
             nombre = match_caja.get('NOMBRE', '')
-            res_caja.append({**base, 'carpeta': '', 'estado': 'RECUPERACIÓN CAJA', 'nombre_dueno': nombre})
+            rec = {**base, 'carpeta': '', 'estado': 'RECUPERACIÓN CAJA', 'nombre_dueno': nombre, 'clasificacion': 'caja'}
+            res_caja.append(rec)
             continue
 
-        # 2. Verificar si es arrendatario
+        # ¿Es arrendatario?
         match = find_match(a['rut_norm'], a['monto'])
-
         if not match:
-            # Sin match en BD arrendatarios → Reserva
-            res_res.append({**base, 'carpeta': '', 'estado': 'RESERVA'})
+            res_res.append({**base, 'carpeta': '', 'estado': 'RESERVA', 'clasificacion': 'reserva'})
             continue
 
-        # Calcular mes: usar último mes local (que ya avanza si hay múltiples pagos del mismo RUT)
-        ult = ultimo_mes_local.get(a['rut_norm'], '')
-        mes = sig_mes(ult) or mes_cartola
-        carpeta = str(match['CARPETA'])
+        carpeta_id = str(match['CARPETA'])
+        monto_esp  = match['MONTO_ESP']
 
-        # Actualizar último mes local para que el siguiente pago de este RUT avance un mes más
-        ultimo_mes_local[a['rut_norm']] = mes
+        if carpeta_id not in carpetas:
+            carpetas[carpeta_id] = {
+                'carpeta': carpeta_id,
+                'rut': a['rut'] or 'Sin RUT',
+                'monto_esp': monto_esp,
+                'ultimo_mes': ultimo_mes.get(a['rut_norm'], ''),
+                'pagos': []
+            }
+        carpetas[carpeta_id]['pagos'].append({**base, 'carpeta': carpeta_id})
 
-        if match['tipo'] == 'OK':
-            res_ok.append({**base, 'carpeta': carpeta, 'mes': mes, 'estado': 'OK', 'diff': match['diff']})
-        else:
-            diff  = match['diff']
-            label = f"▲ DE MÁS +${diff:,.0f}" if diff > 0 else f"▼ DE MENOS -${abs(diff):,.0f}"
-            res_dif.append({**base, 'carpeta': carpeta, 'mes': mes, 'estado': label, 'diff': diff})
+    # Ordenar pagos de cada carpeta por índice (orden cartola)
+    for cid, info in carpetas.items():
+        info['pagos'] = sorted(info['pagos'], key=lambda x: x['idx'])
 
-    # Ordenar todos por orden de aparición en la cartola (fecha original)
+    # Generar propuestas por carpeta
+    for cid, info in carpetas.items():
+        propuestas = proponer_clasificacion(
+            cid, info['pagos'], info['monto_esp'],
+            info['ultimo_mes'], mes_cartola
+        )
+        for p in propuestas:
+            if p['clasificacion'] == 'ok':
+                res_ok.append(p)
+            elif p['clasificacion'] == 'reajuste':
+                res_dif.append({**p, 'es_reajuste': True})
+            else:
+                res_dif.append(p)
+
     res_ok   = sorted(res_ok,   key=lambda x: x['idx'])
     res_dif  = sorted(res_dif,  key=lambda x: x['idx'])
     res_res  = sorted(res_res,  key=lambda x: x['idx'])
     res_caja = sorted(res_caja, key=lambda x: x['idx'])
 
-    return res_ok, res_dif, res_res, res_caja, mes_cartola
+    # Vista interactiva — lista de carpetas con resumen
+    vista_carpetas = []
+    for cid, info in sorted(carpetas.items(), key=lambda x: x[0]):
+        total = sum(p['monto'] for p in info['pagos'])
+        diff  = total - info['monto_esp']
+        propuestas = proponer_clasificacion(
+            cid, info['pagos'], info['monto_esp'],
+            info['ultimo_mes'], mes_cartola
+        )
+        estado_prop = propuestas[0]['clasificacion'] if propuestas else 'dif'
+        vista_carpetas.append({
+            'carpeta':   cid,
+            'rut':       info['rut'],
+            'monto_esp': info['monto_esp'],
+            'total_pag': total,
+            'diff':      diff,
+            'n_pagos':   len(info['pagos']),
+            'pagos':     info['pagos'],
+            'propuesta': estado_prop,
+            'mes':       sig_mes(info['ultimo_mes']) or mes_cartola,
+        })
 
-# ── Escribir filas en una hoja ──
+    return res_ok, res_dif, res_res, res_caja, mes_cartola, vista_carpetas
+
+# ── Escribir filas en hoja Excel ──
 def escribir_filas(ws, rows, has_carpeta=True):
     last_row = ws.max_row
     while last_row > 3 and ws.cell(last_row, 1).value in [None, '']:
@@ -245,126 +363,117 @@ def escribir_filas(ws, rows, has_carpeta=True):
         last_row += 1
         row_bg = C_GRAY_H if last_row % 2 == 0 else C_WHITE
 
+        obs = row_data.get('obs', '')
         if has_carpeta:
             vals = [row_data['fecha'], row_data.get('carpeta',''),
                     row_data['rut'], row_data['desc'],
                     row_data['monto'], row_data.get('mes',''),
-                    row_data['estado'], '']
+                    row_data['estado'], obs]
         else:
             vals = [row_data['fecha'], '',
                     row_data['rut'], row_data['desc'],
                     row_data['monto'], row_data.get('mes',''),
-                    row_data['estado'], '']
+                    row_data['estado'], obs]
 
         for col, val in enumerate(vals, 1):
             c = ws.cell(row=last_row, column=col, value=val)
-            c.fill   = PatternFill('solid', fgColor=row_bg)
-            c.border = Border(bottom=Side(style='thin', color='E2E8F0'),
-                              left=Side(style='thin',   color='E2E8F0'),
-                              right=Side(style='thin',  color='E2E8F0'))
+            c.fill      = PatternFill('solid', fgColor=row_bg)
+            c.border    = Border(bottom=Side(style='thin',color='E2E8F0'),
+                                 left=Side(style='thin',color='E2E8F0'),
+                                 right=Side(style='thin',color='E2E8F0'))
             c.font      = Font(name='Calibri', size=9, color=C_BLACK)
             c.alignment = Alignment(vertical='center')
 
-        # FECHA
-        ws.cell(last_row, 1).alignment = Alignment(horizontal='center', vertical='center')
-        # CARPETA
-        ws.cell(last_row, 2).font      = Font(name='Calibri', bold=True, size=10, color=C_NAVY)
-        ws.cell(last_row, 2).alignment = Alignment(horizontal='center', vertical='center')
-        # RUT
-        ws.cell(last_row, 3).font      = Font(name='Courier New', size=9, color=C_BLACK)
-        ws.cell(last_row, 3).alignment = Alignment(horizontal='center', vertical='center')
-        # MONTO
-        mc = ws.cell(last_row, 5)
-        mc.font          = Font(name='Courier New', bold=True, size=9, color=C_BLACK)
+        ws.cell(last_row,1).alignment = Alignment(horizontal='center',vertical='center')
+        ws.cell(last_row,2).font      = Font(name='Calibri',bold=True,size=10,color=C_NAVY)
+        ws.cell(last_row,2).alignment = Alignment(horizontal='center',vertical='center')
+        ws.cell(last_row,3).font      = Font(name='Courier New',size=9,color=C_BLACK)
+        ws.cell(last_row,3).alignment = Alignment(horizontal='center',vertical='center')
+
+        mc = ws.cell(last_row,5)
+        mc.font          = Font(name='Courier New',bold=True,size=9,color=C_BLACK)
         mc.number_format = '#,##0'
-        mc.alignment     = Alignment(horizontal='right', vertical='center')
-        # PERÍODO
-        pc  = ws.cell(last_row, 6)
+        mc.alignment     = Alignment(horizontal='right',vertical='center')
+
+        pc  = ws.cell(last_row,6)
         per = str(pc.value).strip().upper() if pc.value else ''
         if per in MES_BG:
-            pc.fill = PatternFill('solid', fgColor=MES_BG[per])
-            pc.font = Font(name='Calibri', bold=True, size=8, color=MES_FG.get(per, C_BLACK))
+            pc.fill = PatternFill('solid',fgColor=MES_BG[per])
+            pc.font = Font(name='Calibri',bold=True,size=8,color=MES_FG.get(per,C_BLACK))
         else:
-            pc.font = Font(name='Calibri', size=8, color=C_BLACK)
-        pc.alignment = Alignment(horizontal='center', vertical='center')
-        # ESTADO
-        ec     = ws.cell(last_row, 7)
-        estado = str(ec.value) if ec.value else ''
-        if estado.startswith('▲'):
-            ec.font = Font(name='Calibri', bold=True, size=8, color='1D4ED8')
-            ec.fill = PatternFill('solid', fgColor='DBEAFE')
-        elif estado.startswith('▼'):
-            ec.font = Font(name='Calibri', bold=True, size=8, color='991B1B')
-            ec.fill = PatternFill('solid', fgColor='FEE2E2')
-        elif estado in ('OK',):
-            ec.font = Font(name='Calibri', bold=True, size=8, color='14532D')
-            ec.fill = PatternFill('solid', fgColor='DCFCE7')
-        elif estado == 'RECUPERACIÓN CAJA':
-            ec.font = Font(name='Calibri', bold=True, size=8, color='7C2D12')
-            ec.fill = PatternFill('solid', fgColor='FED7AA')
-        ec.alignment = Alignment(horizontal='center', vertical='center')
-        # OBS
-        ws.cell(last_row, 8).font = Font(name='Calibri', size=8, color=C_MUTED, italic=True)
+            pc.font = Font(name='Calibri',size=8,color=C_BLACK)
+        pc.alignment = Alignment(horizontal='center',vertical='center')
 
-# ── Clonar encabezado de una hoja existente ──
+        ec     = ws.cell(last_row,7)
+        estado = str(ec.value) if ec.value else ''
+        if estado == 'OK':
+            ec.font = Font(name='Calibri',bold=True,size=8,color='14532D')
+            ec.fill = PatternFill('solid',fgColor='DCFCE7')
+        elif estado.startswith('▲'):
+            ec.font = Font(name='Calibri',bold=True,size=8,color='1D4ED8')
+            ec.fill = PatternFill('solid',fgColor='DBEAFE')
+        elif estado.startswith('▼'):
+            ec.font = Font(name='Calibri',bold=True,size=8,color='991B1B')
+            ec.fill = PatternFill('solid',fgColor='FEE2E2')
+        elif '⚠️' in estado:
+            ec.font = Font(name='Calibri',bold=True,size=8,color='78350F')
+            ec.fill = PatternFill('solid',fgColor='FEF3C7')
+        elif estado == 'RECUPERACIÓN CAJA':
+            ec.font = Font(name='Calibri',bold=True,size=8,color='7C2D12')
+            ec.fill = PatternFill('solid',fgColor='FED7AA')
+        ec.alignment = Alignment(horizontal='center',vertical='center')
+
+        ws.cell(last_row,8).font = Font(name='Calibri',size=8,color=C_MUTED,italic=True)
+
 def clonar_encabezado(wb, origen_name, destino_ws, nuevo_titulo):
-    if origen_name not in wb.sheetnames:
-        return
+    if origen_name not in wb.sheetnames: return
     ws_orig = wb[origen_name]
-    # Copiar filas 1-3 (título, vacía, encabezados)
     for row_idx in range(1, 4):
         for col_idx in range(1, 9):
             src = ws_orig.cell(row=row_idx, column=col_idx)
             dst = destino_ws.cell(row=row_idx, column=col_idx)
             dst.value = src.value
             if src.has_style:
-                dst.font      = src.font.copy()
-                dst.fill      = src.fill.copy()
-                dst.border    = src.border.copy()
-                dst.alignment = src.alignment.copy()
+                dst.font = src.font.copy(); dst.fill = src.fill.copy()
+                dst.border = src.border.copy(); dst.alignment = src.alignment.copy()
                 dst.number_format = src.number_format
-    # Cambiar título de la fila 1
     destino_ws.cell(row=1, column=1).value = nuevo_titulo
-    # Copiar anchos de columna
     for col_idx in range(1, 9):
         col_letter = get_column_letter(col_idx)
         if col_letter in ws_orig.column_dimensions:
             destino_ws.column_dimensions[col_letter].width = ws_orig.column_dimensions[col_letter].width
 
-# ── Generate Excel ──
-def generar_excel(hist_wb, res_ok, res_dif, res_res, res_caja):
-    # ── Eliminar hojas que ya no se usan ──
+def generar_excel(hist_wb, res_ok, res_dif, res_reajuste, res_res, res_caja):
     for eliminar in ['SIN ADM', 'EFECTIVO-CHEQUE']:
         if eliminar in hist_wb.sheetnames:
             del hist_wb[eliminar]
 
-    # ── Renombrar ARRIENDOS → ARRIENDOS OK ──
     if 'ARRIENDOS' in hist_wb.sheetnames:
         hist_wb['ARRIENDOS'].title = 'ARRIENDOS OK'
 
-    # ── Crear hoja ARRIENDOS CON DIFERENCIAS si no existe ──
-    if 'ARRIENDOS CON DIFERENCIAS' not in hist_wb.sheetnames:
-        ws_dif = hist_wb.create_sheet('ARRIENDOS CON DIFERENCIAS', 2)
-        clonar_encabezado(hist_wb, 'ARRIENDOS OK', ws_dif, 'Arriendos con Diferencias 2026')
-    
-    # ── Ordenar pestañas: RESUMEN, ARRIENDOS OK, ARRIENDOS CON DIFERENCIAS, RESERVAS, RECUPERACIÓN CAJA ──
-    orden_deseado = ['RESUMEN', 'ARRIENDOS OK', 'ARRIENDOS CON DIFERENCIAS', 'RESERVAS', 'RECUPERACIÓN CAJA']
-    for i, nombre in enumerate(orden_deseado):
+    for nombre, titulo in [('ARRIENDOS CON DIFERENCIAS','Arriendos con Diferencias 2026'),
+                            ('REAJUSTES PENDIENTES','Reajustes Pendientes 2026')]:
+        if nombre not in hist_wb.sheetnames:
+            ws_new = hist_wb.create_sheet(nombre)
+            clonar_encabezado(hist_wb, 'ARRIENDOS OK', ws_new, titulo)
+
+    orden = ['RESUMEN','ARRIENDOS OK','ARRIENDOS CON DIFERENCIAS',
+             'REAJUSTES PENDIENTES','RESERVAS','RECUPERACIÓN CAJA']
+    for i, nombre in enumerate(orden):
         if nombre in hist_wb.sheetnames:
-            hist_wb.move_sheet(nombre, offset=hist_wb.sheetnames.index(nombre) * -1 + i)
+            idx_actual = hist_wb.sheetnames.index(nombre)
+            hist_wb.move_sheet(nombre, offset=i - idx_actual)
 
-    # ── Escribir datos en cada hoja ──
-    if res_ok and 'ARRIENDOS OK' in hist_wb.sheetnames:
-        escribir_filas(hist_wb['ARRIENDOS OK'], res_ok, has_carpeta=True)
-
-    if res_dif and 'ARRIENDOS CON DIFERENCIAS' in hist_wb.sheetnames:
-        escribir_filas(hist_wb['ARRIENDOS CON DIFERENCIAS'], res_dif, has_carpeta=True)
-
-    if res_res and 'RESERVAS' in hist_wb.sheetnames:
-        escribir_filas(hist_wb['RESERVAS'], res_res, has_carpeta=False)
-
-    if res_caja and 'RECUPERACIÓN CAJA' in hist_wb.sheetnames:
-        escribir_filas(hist_wb['RECUPERACIÓN CAJA'], res_caja, has_carpeta=True)
+    if res_ok       and 'ARRIENDOS OK'               in hist_wb.sheetnames:
+        escribir_filas(hist_wb['ARRIENDOS OK'],               res_ok,       True)
+    if res_dif      and 'ARRIENDOS CON DIFERENCIAS'  in hist_wb.sheetnames:
+        escribir_filas(hist_wb['ARRIENDOS CON DIFERENCIAS'],  res_dif,      True)
+    if res_reajuste and 'REAJUSTES PENDIENTES'        in hist_wb.sheetnames:
+        escribir_filas(hist_wb['REAJUSTES PENDIENTES'],       res_reajuste, True)
+    if res_res      and 'RESERVAS'                   in hist_wb.sheetnames:
+        escribir_filas(hist_wb['RESERVAS'],                   res_res,      False)
+    if res_caja     and 'RECUPERACIÓN CAJA'          in hist_wb.sheetnames:
+        escribir_filas(hist_wb['RECUPERACIÓN CAJA'],          res_caja,     False)
 
     output = io.BytesIO()
     hist_wb.save(output)
@@ -405,16 +514,59 @@ def procesar_route():
         hist_wb    = load_workbook(hist_file)
         cartola_wb = load_workbook(cartola_file)
 
-        res_ok, res_dif, res_res, res_caja, mes = procesar(hist_wb, cartola_wb)
+        res_ok, res_dif, res_res, res_caja, mes, vista_carpetas = procesar(hist_wb, cartola_wb)
+
+        # Separar reajustes de diferencias para la respuesta
+        res_reajuste = [r for r in res_dif if r.get('es_reajuste')]
+        res_dif_real = [r for r in res_dif if not r.get('es_reajuste')]
+
+        # Cargar decisiones guardadas
+        decisiones = load_decisiones()
+
+        # Aplicar decisiones guardadas a la vista de carpetas
+        for c in vista_carpetas:
+            key = f"{c['carpeta']}_{mes}"
+            if key in decisiones:
+                c['propuesta'] = decisiones[key]['clasificacion']
+                c['mes']       = decisiones[key].get('mes', c['mes'])
+                c['obs']       = decisiones[key].get('obs', '')
 
         return jsonify({
-            'ok':    res_ok,
-            'dif':   res_dif,
-            'res':   res_res,
-            'caja':  res_caja,
-            'mes':   mes,
-            'total': len(res_ok) + len(res_dif) + len(res_res) + len(res_caja)
+            'ok':        res_ok,
+            'dif':       res_dif_real,
+            'reajuste':  res_reajuste,
+            'res':       res_res,
+            'caja':      res_caja,
+            'mes':       mes,
+            'carpetas':  vista_carpetas,
+            'total':     len(res_ok)+len(res_dif)+len(res_res)+len(res_caja)
         })
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+
+@app.route('/guardar_decision', methods=['POST'])
+def guardar_decision():
+    if not session.get('user'):
+        return jsonify({'error': 'No autorizado'}), 401
+    try:
+        data       = request.json
+        carpeta    = data.get('carpeta')
+        mes        = data.get('mes')
+        clasif     = data.get('clasificacion')
+        obs        = data.get('obs', '')
+        mes_asig   = data.get('mes_asignado', mes)
+
+        decisiones = load_decisiones()
+        key = f"{carpeta}_{mes}"
+        decisiones[key] = {
+            'clasificacion': clasif,
+            'mes':           mes_asig,
+            'obs':           obs,
+            'fecha':         datetime.datetime.now().isoformat()
+        }
+        save_decisiones(decisiones)
+        return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -428,13 +580,14 @@ def descargar_route():
         if not hist_file:
             return jsonify({'error': 'Falta historial'}), 400
 
-        hist_wb  = load_workbook(hist_file)
-        res_ok   = data.get('ok',   [])
-        res_dif  = data.get('dif',  [])
-        res_res  = data.get('res',  [])
-        res_caja = data.get('caja', [])
+        hist_wb      = load_workbook(hist_file)
+        res_ok       = data.get('ok',       [])
+        res_dif      = data.get('dif',      [])
+        res_reajuste = data.get('reajuste', [])
+        res_res      = data.get('res',      [])
+        res_caja     = data.get('caja',     [])
 
-        output = generar_excel(hist_wb, res_ok, res_dif, res_res, res_caja)
+        output = generar_excel(hist_wb, res_ok, res_dif, res_reajuste, res_res, res_caja)
 
         from datetime import date
         filename = f"Historial_2026_Actualizado_{date.today().isoformat()}.xlsx"
