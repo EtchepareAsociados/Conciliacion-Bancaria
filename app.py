@@ -130,7 +130,18 @@ def parse_historial(wb):
                 try: keys.add(f"{rut}|{int(float(monto))}|{fecha}")
                 except: pass
             if rut and periodo in MESES:
-                ultimo_mes[rut] = periodo
+                # Guardar siempre el mes más reciente (más avanzado en el año)
+                if rut not in ultimo_mes:
+                    ultimo_mes[rut] = periodo
+                else:
+                    idx_actual = MESES.index(ultimo_mes[rut])
+                    idx_nuevo  = MESES.index(periodo)
+                    # Considerar wrap de año: si actual es DIC y nuevo es ENE, el nuevo es más reciente
+                    if idx_nuevo > idx_actual:
+                        ultimo_mes[rut] = periodo
+                    # Si hay wrap (ej: actual=NOV, nuevo=ENE), el nuevo es más reciente
+                    elif idx_actual >= 10 and idx_nuevo <= 1:
+                        ultimo_mes[rut] = periodo
     return keys, ultimo_mes
 
 # ── Parse cartola ──
@@ -164,97 +175,195 @@ def detectar_mes(abonos):
 # ── Propuesta inteligente por carpeta ──
 def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola):
     """
-    Lógica cruzada:
-    1. Primer pago >= 70% del monto esperado → es el arriendo del mes, avanza mes.
-       Si quedó diferencia pendiente, se registra.
-    2. Pagos siguientes en el mismo mes, DESPUÉS de que ya se cubrió el arriendo:
-       - Si cubre la diferencia pendiente exacta (±10%) → REAJUSTE PENDIENTE
-       - Si es monto pequeño (<=20% del arriendo) → RECUPERACIÓN CAJA
-       - Si es monto grande (>=70%) → arriendo del siguiente mes, avanza mes
-       - Si está en el medio → ABONO PRÓXIMO MES
-    """
-    resultado = []
-    mes_actual  = sig_mes(ultimo_mes_rut) or mes_cartola
-    diff_pendiente = 0   # diferencia que quedó del último arriendo pagado
-    arriendo_cubierto = False  # si ya se cubrió el arriendo del mes actual
+    Lógica de clasificación:
 
-    for pago in pagos:
+    PASO 1 — Agrupar pagos del mismo día:
+      Si varios pagos del mismo día suman >= 70% del arriendo → se acumulan como un solo mes.
+
+    PASO 2 — Agrupar pagos de distintos días dentro del mismo "mes pendiente":
+      Si el arriendo del período NO está cubierto (hay diferencia), y llega otro pago
+      del mismo RUT que junto al anterior completa o se acerca al monto esperado →
+      se acumulan para el mismo mes en vez de avanzar.
+      Criterio: si el acumulado supera el 70% del arriendo → cierra ese mes.
+
+    PASO 3 — Una vez cubierto el mes:
+      - Pago siguiente >= 70% → nuevo mes
+      - Pago <= 20% → recuperación caja / reajuste
+      - Entre 20%-70% → abono próximo mes
+    """
+    from collections import OrderedDict
+
+    resultado     = []
+    mes_actual    = sig_mes(ultimo_mes_rut) or mes_cartola
+    diff_pendiente = 0
+    mes_cerrado   = False   # True cuando el mes actual ya quedó cerrado (cubierto o no)
+    acumulado_mes = 0       # acumulado de pagos para el mes actual en curso
+    pagos_mes_actual = []   # pagos que van al mes actual (para escribirlos juntos)
+
+    def cerrar_mes_actual():
+        """Escribe todos los pagos acumulados con el estado final del mes."""
+        nonlocal acumulado_mes, pagos_mes_actual, mes_actual, diff_pendiente
+        total = acumulado_mes
+        diff  = total - monto_esp
+        if diff == 0:   estado = 'OK';                          clasificacion = 'ok'
+        elif diff > 0:  estado = f'▲ DE MÁS +${diff:,.0f}';    clasificacion = 'dif'
+        else:           estado = f'▼ DE MENOS -${abs(diff):,.0f}'; clasificacion = 'dif'
+        diff_pendiente = abs(diff) if diff < 0 else 0
+        obs = f'Pago fraccionado — total ${total:,.0f}' if len(pagos_mes_actual) > 1 else ''
+        for p in pagos_mes_actual:
+            resultado.append({**p, 'carpeta': carpeta_id,
+                'mes': mes_actual, 'estado': estado,
+                'clasificacion': clasificacion, 'obs': obs})
+        mes_actual = sig_mes(mes_actual) or mes_actual
+        acumulado_mes    = 0
+        pagos_mes_actual = []
+
+    # Agrupar por fecha primero
+    grupos_fecha = OrderedDict()
+    for p in pagos:
+        grupos_fecha.setdefault(p['fecha'], []).append(p)
+
+    for fecha, grupo in grupos_fecha.items():
+        total_grupo = sum(p['monto'] for p in grupo)
+
+        if not mes_cerrado:
+            # Si cada pago individual del grupo ya es >= 70%, son meses distintos (no acumular)
+            if all((p['monto'] / monto_esp) >= 0.70 for p in grupo):
+                # Procesar cada uno como mes independiente
+                for pago in grupo:
+                    acumulado_mes    = pago['monto']
+                    pagos_mes_actual = [pago]
+                    cerrar_mes_actual()
+                    mes_cerrado = True
+                continue
+
+            # Intentar acumular para el mes actual
+            acumulado_mes    += total_grupo
+            pagos_mes_actual += grupo
+            ratio_acum = acumulado_mes / monto_esp if monto_esp > 0 else 1
+
+            if ratio_acum >= 0.70:
+                cerrar_mes_actual()
+                mes_cerrado = True
+            # Si no llegamos al 70%, seguimos acumulando en el próximo grupo de fechas
+        else:
+            # Mes ya cerrado — evaluar cada pago individualmente
+            for pago in grupo:
+                ratio = pago['monto'] / monto_esp if monto_esp > 0 else 1
+                diff  = pago['monto'] - monto_esp
+
+                if diff_pendiente > 0 and abs(pago['monto'] - diff_pendiente) <= max(diff_pendiente * 0.15, 5000):
+                    # Cubre la diferencia pendiente → REAJUSTE
+                    resultado.append({**pago, 'carpeta': carpeta_id,
+                        'mes': mes_actual, 'estado': '⚠️ REAJUSTE PENDIENTE',
+                        'clasificacion': 'reajuste',
+                        'obs': f'Cubre diferencia pendiente de ${diff_pendiente:,.0f}'})
+                    diff_pendiente = 0
+
+                elif ratio <= 0.20:
+                    resultado.append({**pago, 'carpeta': carpeta_id,
+                        'mes': mes_actual, 'estado': '🏠 RECUPERACIÓN CAJA',
+                        'clasificacion': 'caja',
+                        'obs': 'Monto bajo — posible recuperación caja'})
+
+                elif ratio >= 0.70:
+                    # Nuevo arriendo — acumular para siguiente mes
+                    acumulado_mes    = pago['monto']
+                    pagos_mes_actual = [pago]
+                    mes_cerrado      = False
+                    ratio_acum = acumulado_mes / monto_esp
+                    if ratio_acum >= 0.70:
+                        cerrar_mes_actual()
+                        mes_cerrado = True
+
+                else:
+                    resultado.append({**pago, 'carpeta': carpeta_id,
+                        'mes': mes_actual,
+                        'estado': f'▼ ABONO PRÓX. MES -${abs(diff):,.0f}',
+                        'clasificacion': 'dif',
+                        'obs': 'Abono parcial — posible pago anticipado próximo mes'})
+
+    # Si quedaron pagos acumulados sin cerrar (nunca llegaron al 70%)
+    if pagos_mes_actual:
+        total = acumulado_mes
+        diff  = total - monto_esp
+        obs = f'Pago fraccionado — total ${total:,.0f}' if len(pagos_mes_actual) > 1 else ''
+        for p in pagos_mes_actual:
+            resultado.append({**p, 'carpeta': carpeta_id,
+                'mes': mes_actual,
+                'estado': f'▼ DE MENOS -${abs(diff):,.0f}',
+                'clasificacion': 'dif', 'obs': obs})
+
+    return resultado
+
+    for entrada in pagos_procesados:
+        # ── Bloque acumulado (mismo día, fraccionado) ──
+        if '_grupo' in entrada:
+            grupo  = entrada['_grupo']
+            total  = entrada['_total']
+            diff   = total - monto_esp
+            arriendo_cubierto = True
+            diff_pendiente = abs(diff) if diff < 0 else 0
+
+            if diff == 0:   estado = 'OK';             clasificacion = 'ok'
+            elif diff > 0:  estado = f'▲ DE MÁS +${diff:,.0f}';        clasificacion = 'dif'; diff_pendiente = 0
+            else:           estado = f'▼ DE MENOS -${abs(diff):,.0f}';  clasificacion = 'dif'
+
+            # Escribir cada pago individual con el mismo estado/mes
+            for p in grupo:
+                resultado.append({**p, 'carpeta': carpeta_id,
+                    'mes': mes_actual, 'estado': estado,
+                    'clasificacion': clasificacion,
+                    'obs': f'Pago fraccionado — total ${total:,.0f}'})
+            mes_actual = sig_mes(mes_actual) or mes_actual
+            continue
+
+        # ── Pago individual ──
+        pago  = entrada
         ratio = pago['monto'] / monto_esp if monto_esp > 0 else 1
         diff  = pago['monto'] - monto_esp
 
         if not arriendo_cubierto:
             if ratio >= 0.70:
-                # Es el arriendo del mes actual
                 arriendo_cubierto = True
-                diff_pendiente = abs(diff) if diff < 0 else 0  # guardamos si quedó debe
-
-                if diff == 0:
-                    estado = 'OK'
-                    clasificacion = 'ok'
-                elif diff > 0:
-                    estado = f'▲ DE MÁS +${diff:,.0f}'
-                    clasificacion = 'dif'
-                    diff_pendiente = 0
-                else:
-                    estado = f'▼ DE MENOS -${abs(diff):,.0f}'
-                    clasificacion = 'dif'
-
+                diff_pendiente = abs(diff) if diff < 0 else 0
+                if diff == 0:   estado = 'OK';                          clasificacion = 'ok'
+                elif diff > 0:  estado = f'▲ DE MÁS +${diff:,.0f}';    clasificacion = 'dif'; diff_pendiente = 0
+                else:           estado = f'▼ DE MENOS -${abs(diff):,.0f}'; clasificacion = 'dif'
                 resultado.append({**pago, 'carpeta': carpeta_id,
                     'mes': mes_actual, 'estado': estado,
                     'clasificacion': clasificacion, 'obs': ''})
                 mes_actual = sig_mes(mes_actual) or mes_actual
-
             else:
-                # Pago insuficiente para cubrir el arriendo → diferencia
                 resultado.append({**pago, 'carpeta': carpeta_id,
                     'mes': mes_actual,
                     'estado': f'▼ DE MENOS -${abs(diff):,.0f}',
                     'clasificacion': 'dif', 'obs': 'Pago insuficiente para cubrir arriendo'})
-
         else:
-            # El arriendo ya fue cubierto — evaluar qué es este pago adicional
             if diff_pendiente > 0 and abs(pago['monto'] - diff_pendiente) <= max(diff_pendiente * 0.10, 5000):
-                # Cubre la diferencia pendiente exacta → REAJUSTE
-                estado = '⚠️ REAJUSTE PENDIENTE'
-                clasificacion = 'reajuste'
+                estado = '⚠️ REAJUSTE PENDIENTE'; clasificacion = 'reajuste'
                 obs = f'Cubre diferencia pendiente de ${diff_pendiente:,.0f}'
                 diff_pendiente = 0
-
             elif ratio <= 0.20:
-                # Monto muy pequeño → recuperación caja
-                estado = '🏠 RECUPERACIÓN CAJA'
-                clasificacion = 'caja'
+                estado = '🏠 RECUPERACIÓN CAJA'; clasificacion = 'caja'
                 obs = 'Monto bajo — posible recuperación caja'
-
             elif ratio >= 0.70:
-                # Monto grande → arriendo del siguiente mes
                 diff2 = pago['monto'] - monto_esp
-                if diff2 == 0:
-                    estado = 'OK'
-                    clasificacion = 'ok'
-                elif diff2 > 0:
-                    estado = f'▲ DE MÁS +${diff2:,.0f}'
-                    clasificacion = 'dif'
-                else:
-                    estado = f'▼ DE MENOS -${abs(diff2):,.0f}'
-                    clasificacion = 'dif'
-                obs = ''
+                if diff2 == 0:   estado = 'OK';                           clasificacion = 'ok'
+                elif diff2 > 0:  estado = f'▲ DE MÁS +${diff2:,.0f}';    clasificacion = 'dif'
+                else:            estado = f'▼ DE MENOS -${abs(diff2):,.0f}'; clasificacion = 'dif'
                 resultado.append({**pago, 'carpeta': carpeta_id,
                     'mes': mes_actual, 'estado': estado,
-                    'clasificacion': clasificacion, 'obs': obs})
+                    'clasificacion': clasificacion, 'obs': ''})
                 mes_actual = sig_mes(mes_actual) or mes_actual
                 diff_pendiente = abs(diff2) if diff2 < 0 else 0
                 continue
-
             else:
-                # Entre 20% y 70% → abono para el próximo mes
-                estado = f'▼ ABONO PRÓX. MES -${abs(diff):,.0f}'
-                clasificacion = 'dif'
+                estado = f'▼ ABONO PRÓX. MES -${abs(diff):,.0f}'; clasificacion = 'dif'
                 obs = 'Abono parcial — posible pago anticipado próximo mes'
-
             resultado.append({**pago, 'carpeta': carpeta_id,
                 'mes': mes_actual, 'estado': estado,
-                'clasificacion': clasificacion, 'obs': obs if 'obs' in dir() else ''})
+                'clasificacion': clasificacion, 'obs': obs})
 
     return resultado
 
