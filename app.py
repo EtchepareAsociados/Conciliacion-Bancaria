@@ -175,38 +175,29 @@ def detectar_mes(abonos):
 # ── Propuesta inteligente por carpeta ──
 def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola):
     """
-    Lógica de clasificación:
-
-    PASO 1 — Agrupar pagos del mismo día:
-      Si varios pagos del mismo día suman >= 70% del arriendo → se acumulan como un solo mes.
-
-    PASO 2 — Agrupar pagos de distintos días dentro del mismo "mes pendiente":
-      Si el arriendo del período NO está cubierto (hay diferencia), y llega otro pago
-      del mismo RUT que junto al anterior completa o se acerca al monto esperado →
-      se acumulan para el mismo mes en vez de avanzar.
-      Criterio: si el acumulado supera el 70% del arriendo → cierra ese mes.
-
-    PASO 3 — Una vez cubierto el mes:
-      - Pago siguiente >= 70% → nuevo mes
-      - Pago <= 20% → recuperación caja / reajuste
-      - Entre 20%-70% → abono próximo mes
+    Regla simple y clara:
+    - Acumular pagos consecutivos hasta que el total >= 70% del arriendo → cerrar mes
+    - EXCEPCIÓN: si hay múltiples pagos en el mismo día y cada uno >= 70% → meses distintos
+    - Una vez cerrado el mes:
+        · pago <= 20% → rec. caja / reajuste
+        · pago >= 70% → nuevo mes
+        · entre 20-70% → abono próximo mes
     """
     from collections import OrderedDict
 
-    resultado     = []
-    mes_actual    = sig_mes(ultimo_mes_rut) or mes_cartola
-    diff_pendiente = 0
-    mes_cerrado   = False   # True cuando el mes actual ya quedó cerrado (cubierto o no)
-    acumulado_mes = 0       # acumulado de pagos para el mes actual en curso
-    pagos_mes_actual = []   # pagos que van al mes actual (para escribirlos juntos)
+    resultado        = []
+    mes_actual       = sig_mes(ultimo_mes_rut) or mes_cartola
+    diff_pendiente   = 0
+    mes_cerrado      = False
+    acumulado_mes    = 0
+    pagos_mes_actual = []
 
-    def cerrar_mes_actual():
-        """Escribe todos los pagos acumulados con el estado final del mes."""
+    def cerrar():
         nonlocal acumulado_mes, pagos_mes_actual, mes_actual, diff_pendiente
         total = acumulado_mes
         diff  = total - monto_esp
-        if diff == 0:   estado = 'OK';                          clasificacion = 'ok'
-        elif diff > 0:  estado = f'▲ DE MÁS +${diff:,.0f}';    clasificacion = 'dif'
+        if diff == 0:   estado = 'OK';                             clasificacion = 'ok'
+        elif diff > 0:  estado = f'▲ DE MÁS +${diff:,.0f}';       clasificacion = 'dif'
         else:           estado = f'▼ DE MENOS -${abs(diff):,.0f}'; clasificacion = 'dif'
         diff_pendiente = abs(diff) if diff < 0 else 0
         obs = f'Pago fraccionado — total ${total:,.0f}' if len(pagos_mes_actual) > 1 else ''
@@ -214,62 +205,72 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
             resultado.append({**p, 'carpeta': carpeta_id,
                 'mes': mes_actual, 'estado': estado,
                 'clasificacion': clasificacion, 'obs': obs})
-        mes_actual = sig_mes(mes_actual) or mes_actual
+        mes_actual       = sig_mes(mes_actual) or mes_actual
         acumulado_mes    = 0
         pagos_mes_actual = []
 
-    # Agrupar por fecha primero
-    grupos_fecha = OrderedDict()
+    # Agrupar por fecha
+    grupos = OrderedDict()
     for p in pagos:
-        grupos_fecha.setdefault(p['fecha'], []).append(p)
+        grupos.setdefault(p['fecha'], []).append(p)
+    fechas = list(grupos.keys())
 
-    for fecha, grupo in grupos_fecha.items():
-        total_grupo = sum(p['monto'] for p in grupo)
+    for fi, fecha in enumerate(fechas):
+        grupo    = grupos[fecha]
+        hay_mas  = fi < len(fechas) - 1
 
         if not mes_cerrado:
-            # Si cada pago individual del grupo ya es >= 70%, son meses distintos (no acumular)
-            if all((p['monto'] / monto_esp) >= 0.70 for p in grupo):
-                # Procesar cada uno como mes independiente
+            # Caso especial: múltiples pagos en el mismo día, cada uno >= 70% → meses distintos
+            if len(grupo) > 1 and all(p['monto'] / monto_esp >= 0.70 for p in grupo):
                 for pago in grupo:
                     acumulado_mes    = pago['monto']
                     pagos_mes_actual = [pago]
-                    cerrar_mes_actual()
-                    mes_cerrado = True
+                    cerrar()
+                mes_cerrado = True
                 continue
 
-            # Acumular para el mes actual
-            acumulado_mes    += total_grupo
+            # Acumular este grupo al mes actual
+            acumulado_mes    += sum(p['monto'] for p in grupo)
             pagos_mes_actual += grupo
-            ratio_acum = acumulado_mes / monto_esp if monto_esp > 0 else 1
+            ratio = acumulado_mes / monto_esp if monto_esp > 0 else 1
 
-            # Solo cerrar el mes si:
-            # 1. Ya cubrimos >= 100% (pagó completo o de más), O
-            # 2. Llevamos acumulado >= 70% Y el siguiente grupo de fechas también es >= 70% individualmente
-            #    (en ese caso el siguiente sería otro mes, no complemento)
-            # En todos los demás casos seguimos acumulando
-            if ratio_acum >= 1.0:
-                cerrar_mes_actual()
+            if ratio >= 1.0:
+                # Pagó completo o de más → cerrar mes
+                cerrar()
                 mes_cerrado = True
-            elif ratio_acum >= 0.70:
-                # Revisar si hay más pagos — si los hay, seguir acumulando para ver si completan mejor
-                # Solo cerrar si este es el último grupo o el siguiente supera solo el 70%
-                fechas_list = list(grupos_fecha.keys())
-                idx_actual  = fechas_list.index(fecha)
-                hay_mas     = idx_actual < len(fechas_list) - 1
+            elif not hay_mas:
+                # Último grupo → cerrar con lo que hay
+                cerrar()
+                mes_cerrado = True
+            elif ratio >= 0.70:
+                # Tenemos >= 70% pero hay más pagos
+                # Ver si el próximo grupo son arriendos completos independientes
+                prox_grupo = grupos[fechas[fi + 1]]
+                prox_total = sum(p['monto'] for p in prox_grupo)
+                prox_ratio = prox_total / monto_esp if monto_esp > 0 else 1
 
-                if not hay_mas:
-                    # Último grupo, cerrar con lo que hay
-                    cerrar_mes_actual()
+                if prox_ratio <= 0.20:
+                    # El próximo es muy pequeño → es reajuste/caja, cerrar mes ya
+                    cerrar()
                     mes_cerrado = True
-                # Si hay más pagos, seguir acumulando (no cerrar aún)
+                elif len(prox_grupo) > 1 and all(p['monto'] / monto_esp >= 0.70 for p in prox_grupo):
+                    # El próximo son múltiples arriendos completos → cerrar mes ya
+                    cerrar()
+                    mes_cerrado = True
+                elif prox_ratio >= 0.70 and acumulado_mes / monto_esp >= 0.90:
+                    # Ya tenemos >= 90% y el próximo también es grande → cerrar mes
+                    cerrar()
+                    mes_cerrado = True
+                # Si no, seguir acumulando (el próximo complementa este mes)
+            # Si ratio < 0.70, seguir acumulando siempre
+
         else:
-            # Mes ya cerrado — evaluar cada pago individualmente
+            # Mes cerrado → clasificar cada pago individualmente
             for pago in grupo:
                 ratio = pago['monto'] / monto_esp if monto_esp > 0 else 1
                 diff  = pago['monto'] - monto_esp
 
                 if diff_pendiente > 0 and abs(pago['monto'] - diff_pendiente) <= max(diff_pendiente * 0.15, 5000):
-                    # Cubre la diferencia pendiente → REAJUSTE
                     resultado.append({**pago, 'carpeta': carpeta_id,
                         'mes': mes_actual, 'estado': '⚠️ REAJUSTE PENDIENTE',
                         'clasificacion': 'reajuste',
@@ -279,17 +280,15 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
                 elif ratio <= 0.20:
                     resultado.append({**pago, 'carpeta': carpeta_id,
                         'mes': mes_actual, 'estado': '🏠 RECUPERACIÓN CAJA',
-                        'clasificacion': 'caja',
-                        'obs': 'Monto bajo — posible recuperación caja'})
+                        'clasificacion': 'caja', 'obs': 'Monto bajo — posible recuperación caja'})
 
                 elif ratio >= 0.70:
-                    # Nuevo arriendo — acumular para siguiente mes
+                    # Nuevo arriendo → acumular para siguiente mes
                     acumulado_mes    = pago['monto']
                     pagos_mes_actual = [pago]
                     mes_cerrado      = False
-                    ratio_acum = acumulado_mes / monto_esp
-                    if ratio_acum >= 0.70:
-                        cerrar_mes_actual()
+                    if not hay_mas:
+                        cerrar()
                         mes_cerrado = True
 
                 else:
@@ -299,91 +298,12 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
                         'clasificacion': 'dif',
                         'obs': 'Abono parcial — posible pago anticipado próximo mes'})
 
-    # Si quedaron pagos acumulados sin cerrar (nunca llegaron al 70%)
+    # Pagos que quedaron sin cerrar
     if pagos_mes_actual:
-        total = acumulado_mes
-        diff  = total - monto_esp
-        obs = f'Pago fraccionado — total ${total:,.0f}' if len(pagos_mes_actual) > 1 else ''
-        for p in pagos_mes_actual:
-            resultado.append({**p, 'carpeta': carpeta_id,
-                'mes': mes_actual,
-                'estado': f'▼ DE MENOS -${abs(diff):,.0f}',
-                'clasificacion': 'dif', 'obs': obs})
+        cerrar()
 
     return resultado
 
-    for entrada in pagos_procesados:
-        # ── Bloque acumulado (mismo día, fraccionado) ──
-        if '_grupo' in entrada:
-            grupo  = entrada['_grupo']
-            total  = entrada['_total']
-            diff   = total - monto_esp
-            arriendo_cubierto = True
-            diff_pendiente = abs(diff) if diff < 0 else 0
-
-            if diff == 0:   estado = 'OK';             clasificacion = 'ok'
-            elif diff > 0:  estado = f'▲ DE MÁS +${diff:,.0f}';        clasificacion = 'dif'; diff_pendiente = 0
-            else:           estado = f'▼ DE MENOS -${abs(diff):,.0f}';  clasificacion = 'dif'
-
-            # Escribir cada pago individual con el mismo estado/mes
-            for p in grupo:
-                resultado.append({**p, 'carpeta': carpeta_id,
-                    'mes': mes_actual, 'estado': estado,
-                    'clasificacion': clasificacion,
-                    'obs': f'Pago fraccionado — total ${total:,.0f}'})
-            mes_actual = sig_mes(mes_actual) or mes_actual
-            continue
-
-        # ── Pago individual ──
-        pago  = entrada
-        ratio = pago['monto'] / monto_esp if monto_esp > 0 else 1
-        diff  = pago['monto'] - monto_esp
-
-        if not arriendo_cubierto:
-            if ratio >= 0.70:
-                arriendo_cubierto = True
-                diff_pendiente = abs(diff) if diff < 0 else 0
-                if diff == 0:   estado = 'OK';                          clasificacion = 'ok'
-                elif diff > 0:  estado = f'▲ DE MÁS +${diff:,.0f}';    clasificacion = 'dif'; diff_pendiente = 0
-                else:           estado = f'▼ DE MENOS -${abs(diff):,.0f}'; clasificacion = 'dif'
-                resultado.append({**pago, 'carpeta': carpeta_id,
-                    'mes': mes_actual, 'estado': estado,
-                    'clasificacion': clasificacion, 'obs': ''})
-                mes_actual = sig_mes(mes_actual) or mes_actual
-            else:
-                resultado.append({**pago, 'carpeta': carpeta_id,
-                    'mes': mes_actual,
-                    'estado': f'▼ DE MENOS -${abs(diff):,.0f}',
-                    'clasificacion': 'dif', 'obs': 'Pago insuficiente para cubrir arriendo'})
-        else:
-            if diff_pendiente > 0 and abs(pago['monto'] - diff_pendiente) <= max(diff_pendiente * 0.10, 5000):
-                estado = '⚠️ REAJUSTE PENDIENTE'; clasificacion = 'reajuste'
-                obs = f'Cubre diferencia pendiente de ${diff_pendiente:,.0f}'
-                diff_pendiente = 0
-            elif ratio <= 0.20:
-                estado = '🏠 RECUPERACIÓN CAJA'; clasificacion = 'caja'
-                obs = 'Monto bajo — posible recuperación caja'
-            elif ratio >= 0.70:
-                diff2 = pago['monto'] - monto_esp
-                if diff2 == 0:   estado = 'OK';                           clasificacion = 'ok'
-                elif diff2 > 0:  estado = f'▲ DE MÁS +${diff2:,.0f}';    clasificacion = 'dif'
-                else:            estado = f'▼ DE MENOS -${abs(diff2):,.0f}'; clasificacion = 'dif'
-                resultado.append({**pago, 'carpeta': carpeta_id,
-                    'mes': mes_actual, 'estado': estado,
-                    'clasificacion': clasificacion, 'obs': ''})
-                mes_actual = sig_mes(mes_actual) or mes_actual
-                diff_pendiente = abs(diff2) if diff2 < 0 else 0
-                continue
-            else:
-                estado = f'▼ ABONO PRÓX. MES -${abs(diff):,.0f}'; clasificacion = 'dif'
-                obs = 'Abono parcial — posible pago anticipado próximo mes'
-            resultado.append({**pago, 'carpeta': carpeta_id,
-                'mes': mes_actual, 'estado': estado,
-                'clasificacion': clasificacion, 'obs': obs})
-
-    return resultado
-
-# ── Procesar ──
 def procesar(hist_wb, cartola_wb):
     hist_keys, ultimo_mes = parse_historial(hist_wb)
     abonos = parse_cartola(cartola_wb)
