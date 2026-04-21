@@ -401,15 +401,26 @@ function renderCarpetas(){
   const html = filtradas.map(c=>{
     const dec = decisiones[c.carpeta] || {clasificacion: c.propuesta||'dif', mes: c.mes, obs:''};
     const col = clasifColors(dec.clasificacion);
-    const diffVal = c.diff;
-    const diffClass = diffVal===0?'carpeta-diff-zero':diffVal>0?'carpeta-diff-pos':'carpeta-diff-neg';
-    const diffStr = diffVal===0?'Exacto':diffVal>0?`+$${fmt(diffVal)}`:`-$${fmt(Math.abs(diffVal))}`;
 
-    const pagosHtml = c.pagos.map(p=>`
-      <div class="carpeta-pago">
-        <span>${p.fecha}</span>
-        <span class="carpeta-pago-monto">$${fmt(p.monto)}</span>
-      </div>`).join('');
+    // Usar mes y estado que vienen del backend (ya calculados correctamente)
+    const pagosHtml = c.pagos.map((p,i)=>{
+      const mesP = p.mes || c.mes;
+      const mesBg = MES_BG[mesP]||'#F1F5F9';
+      const mesFg = MES_FG[mesP]||'#475569';
+      const est = p.estado||'';
+      let estColor = '#475569';
+      if(est==='OK') estColor='#16A34A';
+      else if(est.startsWith('▲')) estColor='#1D4ED8';
+      else if(est.startsWith('▼')) estColor='#991B1B';
+      else if(est.includes('REAJUSTE')) estColor='#D97706';
+      else if(est.includes('CAJA')) estColor='#C2410C';
+      return`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #F1F5F9;font-size:11px;gap:6px">
+        <span style="color:#475569;white-space:nowrap">${p.fecha}</span>
+        <span style="background:${mesBg};color:${mesFg};font-weight:700;padding:1px 7px;border-radius:3px;font-size:9px;white-space:nowrap">${mesP}</span>
+        <span style="font-family:IBM Plex Mono,monospace;font-weight:600;white-space:nowrap">$${fmt(p.monto)}</span>
+        <span style="color:${estColor};font-weight:700;font-size:10px;text-align:right">${est}</span>
+      </div>`;
+    }).join('');
 
     const clasifs = ['ok','dif','reajuste','caja'];
     const btnsHtml = clasifs.map(cl=>`
@@ -428,18 +439,10 @@ function renderCarpetas(){
       </div>
       <div class="carpeta-body">
         <div class="carpeta-row">
-          <span class="carpeta-row-label">Monto esperado</span>
+          <span class="carpeta-row-label">Monto esperado mensual</span>
           <span class="carpeta-row-val">$${fmt(c.monto_esp)}</span>
         </div>
-        <div class="carpeta-row">
-          <span class="carpeta-row-label">Total pagado</span>
-          <span class="carpeta-row-val">$${fmt(c.total_pag)}</span>
-        </div>
-        <div class="carpeta-row">
-          <span class="carpeta-row-label">Diferencia</span>
-          <span class="carpeta-row-val ${diffClass}">${diffStr}</span>
-        </div>
-        <div class="carpeta-pagos">${pagosHtml}</div>
+        <div class="carpeta-pagos" style="margin-top:8px">${pagosHtml}</div>
       </div>
       <div class="carpeta-actions">
         ${btnsHtml}
