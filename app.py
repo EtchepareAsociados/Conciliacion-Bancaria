@@ -164,31 +164,97 @@ def detectar_mes(abonos):
 # ── Propuesta inteligente por carpeta ──
 def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola):
     """
-    Lógica simple: cada pago = un mes. Se informa la diferencia real.
-    Sin ratios ni inferencias. El usuario decide qué significa cada diferencia.
+    Lógica cruzada:
+    1. Primer pago >= 70% del monto esperado → es el arriendo del mes, avanza mes.
+       Si quedó diferencia pendiente, se registra.
+    2. Pagos siguientes en el mismo mes, DESPUÉS de que ya se cubrió el arriendo:
+       - Si cubre la diferencia pendiente exacta (±10%) → REAJUSTE PENDIENTE
+       - Si es monto pequeño (<=20% del arriendo) → RECUPERACIÓN CAJA
+       - Si es monto grande (>=70%) → arriendo del siguiente mes, avanza mes
+       - Si está en el medio → ABONO PRÓXIMO MES
     """
     resultado = []
-    mes_actual = sig_mes(ultimo_mes_rut) or mes_cartola
+    mes_actual  = sig_mes(ultimo_mes_rut) or mes_cartola
+    diff_pendiente = 0   # diferencia que quedó del último arriendo pagado
+    arriendo_cubierto = False  # si ya se cubrió el arriendo del mes actual
 
     for pago in pagos:
-        diff = pago['monto'] - monto_esp
+        ratio = pago['monto'] / monto_esp if monto_esp > 0 else 1
+        diff  = pago['monto'] - monto_esp
 
-        if diff == 0:
-            estado       = 'OK'
-            clasificacion = 'ok'
-        elif diff > 0:
-            estado       = f'▲ DE MÁS +${diff:,.0f}'
-            clasificacion = 'dif'
+        if not arriendo_cubierto:
+            if ratio >= 0.70:
+                # Es el arriendo del mes actual
+                arriendo_cubierto = True
+                diff_pendiente = abs(diff) if diff < 0 else 0  # guardamos si quedó debe
+
+                if diff == 0:
+                    estado = 'OK'
+                    clasificacion = 'ok'
+                elif diff > 0:
+                    estado = f'▲ DE MÁS +${diff:,.0f}'
+                    clasificacion = 'dif'
+                    diff_pendiente = 0
+                else:
+                    estado = f'▼ DE MENOS -${abs(diff):,.0f}'
+                    clasificacion = 'dif'
+
+                resultado.append({**pago, 'carpeta': carpeta_id,
+                    'mes': mes_actual, 'estado': estado,
+                    'clasificacion': clasificacion, 'obs': ''})
+                mes_actual = sig_mes(mes_actual) or mes_actual
+
+            else:
+                # Pago insuficiente para cubrir el arriendo → diferencia
+                resultado.append({**pago, 'carpeta': carpeta_id,
+                    'mes': mes_actual,
+                    'estado': f'▼ DE MENOS -${abs(diff):,.0f}',
+                    'clasificacion': 'dif', 'obs': 'Pago insuficiente para cubrir arriendo'})
+
         else:
-            estado       = f'▼ DE MENOS -${abs(diff):,.0f}'
-            clasificacion = 'dif'
+            # El arriendo ya fue cubierto — evaluar qué es este pago adicional
+            if diff_pendiente > 0 and abs(pago['monto'] - diff_pendiente) <= max(diff_pendiente * 0.10, 5000):
+                # Cubre la diferencia pendiente exacta → REAJUSTE
+                estado = '⚠️ REAJUSTE PENDIENTE'
+                clasificacion = 'reajuste'
+                obs = f'Cubre diferencia pendiente de ${diff_pendiente:,.0f}'
+                diff_pendiente = 0
 
-        resultado.append({**pago, 'carpeta': carpeta_id,
-            'mes': mes_actual, 'estado': estado,
-            'clasificacion': clasificacion, 'obs': ''})
+            elif ratio <= 0.20:
+                # Monto muy pequeño → recuperación caja
+                estado = '🏠 RECUPERACIÓN CAJA'
+                clasificacion = 'caja'
+                obs = 'Monto bajo — posible recuperación caja'
 
-        # Cada pago avanza un mes
-        mes_actual = sig_mes(mes_actual) or mes_actual
+            elif ratio >= 0.70:
+                # Monto grande → arriendo del siguiente mes
+                diff2 = pago['monto'] - monto_esp
+                if diff2 == 0:
+                    estado = 'OK'
+                    clasificacion = 'ok'
+                elif diff2 > 0:
+                    estado = f'▲ DE MÁS +${diff2:,.0f}'
+                    clasificacion = 'dif'
+                else:
+                    estado = f'▼ DE MENOS -${abs(diff2):,.0f}'
+                    clasificacion = 'dif'
+                obs = ''
+                resultado.append({**pago, 'carpeta': carpeta_id,
+                    'mes': mes_actual, 'estado': estado,
+                    'clasificacion': clasificacion, 'obs': obs})
+                mes_actual = sig_mes(mes_actual) or mes_actual
+                diff_pendiente = abs(diff2) if diff2 < 0 else 0
+                continue
+
+            else:
+                # Entre 20% y 70% → abono para el próximo mes
+                estado = f'▼ ABONO PRÓX. MES -${abs(diff):,.0f}'
+                clasificacion = 'dif'
+                obs = 'Abono parcial — posible pago anticipado próximo mes'
+
+            resultado.append({**pago, 'carpeta': carpeta_id,
+                'mes': mes_actual, 'estado': estado,
+                'clasificacion': clasificacion, 'obs': obs if 'obs' in dir() else ''})
 
     return resultado
 
@@ -277,6 +343,14 @@ def procesar(hist_wb, cartola_wb):
         # Solo incluir en vista si hay algo que revisar (no las OK exactas)
         if estado_prop == 'ok' and len(info['pagos']) == 1:
             continue
+        # Enriquecer cada pago con su mes y diferencia individual
+        pagos_enriquecidos = []
+        for p in propuestas:
+            pagos_enriquecidos.append({
+                **p,
+                'diff_ind': p['monto'] - info['monto_esp']
+            })
+
         vista_carpetas.append({
             'carpeta':   cid,
             'rut':       info['rut'],
@@ -284,7 +358,7 @@ def procesar(hist_wb, cartola_wb):
             'total_pag': total,
             'diff':      diff,
             'n_pagos':   len(info['pagos']),
-            'pagos':     info['pagos'],
+            'pagos':     pagos_enriquecidos,
             'propuesta': estado_prop,
             'mes':       sig_mes(info['ultimo_mes']) or mes_cartola,
         })
