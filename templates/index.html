@@ -14,7 +14,7 @@
   --dif-bg:#FEE2E2;--dif-c:#991B1B;
   --mas-bg:#DBEAFE;--mas-c:#1D4ED8;
   --res-bg:#FEF3C7;--res-c:#92400E;
-  --efec-bg:#FEF9C3;--efec-c:#713F12;
+  --caja-bg:#FED7AA;--caja-c:#7C2D12;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'IBM Plex Sans',sans-serif;background:#F1F5F9;color:var(--black);min-height:100vh;font-size:13px}
@@ -95,7 +95,7 @@ td{padding:7px 12px;vertical-align:middle}
 .b-mas{background:var(--mas-bg);color:var(--mas-c)}
 .b-menos{background:var(--dif-bg);color:var(--dif-c)}
 .b-reserva{background:var(--res-bg);color:var(--res-c)}
-.b-efec{background:var(--efec-bg);color:var(--efec-c)}
+.b-caja{background:var(--caja-bg);color:var(--caja-c)}
 .b-mes{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px}
 .empty{text-align:center;padding:48px;color:var(--muted2)}
 .empty-icon{font-size:32px;margin-bottom:8px;opacity:.5}
@@ -250,11 +250,15 @@ async function procesar(){
     const data=await resp.json();
     if(data.error){err.textContent='Error: '+data.error;err.style.display='block';return;}
     resultData=data;
-    const total=data.ok.length+data.dif.length+data.res.length+data.efec.length;
+    const ok   = data.ok   || [];
+    const dif  = data.dif  || [];
+    const res  = data.res  || [];
+    const caja = data.caja || [];
+    const total = ok.length + dif.length + res.length + caja.length;
     if(total===0){
       info.textContent='✓ Todos los depósitos de esta cartola ya estaban en el historial. No hay registros nuevos.';
     }else{
-      info.textContent=`✓ Se encontraron ${total} depósitos nuevos: ${data.ok.length} OK, ${data.dif.length} con diferencia, ${data.res.length} reserva, ${data.efec.length} efectivo.`;
+      info.textContent=`✓ Se encontraron ${total} depósitos nuevos: ${ok.length} OK, ${dif.length} con diferencia, ${res.length} reserva, ${caja.length} recuperación caja.`;
     }
     info.style.display='block';
     mostrarResultado();
@@ -269,22 +273,26 @@ async function procesar(){
 }
 
 const TABS=[
-  {id:'ok',  label:'✔ OK',         bg:'#DCFCE7',fg:'#14532D'},
-  {id:'dif', label:'⚡ Diferencia', bg:'#FEE2E2',fg:'#991B1B'},
-  {id:'res', label:'★ Reserva',     bg:'#FEF3C7',fg:'#92400E'},
-  {id:'efec',label:'💵 Efectivo',   bg:'#FEF9C3',fg:'#713F12'},
+  {id:'ok',   label:'✔ Arriendos OK',       bg:'#DCFCE7',fg:'#14532D'},
+  {id:'dif',  label:'⚡ Con Diferencia',     bg:'#FEE2E2',fg:'#991B1B'},
+  {id:'res',  label:'★ Reserva',             bg:'#FEF3C7',fg:'#92400E'},
+  {id:'caja', label:'🏠 Recuperación Caja',  bg:'#FED7AA',fg:'#7C2D12'},
 ];
-const getData=id=>resultData?resultData[id]:[];
+const getData=id=>resultData?(resultData[id]||[]):[];
 
 function mostrarResultado(){
   document.getElementById('secResultado').classList.remove('hidden');
-  const all=[...(resultData.ok||[]),...(resultData.dif||[]),...(resultData.res||[]),...(resultData.efec||[])];
+  const ok   = resultData.ok   || [];
+  const dif  = resultData.dif  || [];
+  const res  = resultData.res  || [];
+  const caja = resultData.caja || [];
+  const all  = [...ok,...dif,...res,...caja];
   const kpis=[
-    {label:'Nuevos hoy',color:'#2563EB',data:all},
-    {label:'OK',        color:'#16A34A',data:resultData.ok||[]},
-    {label:'Diferencia',color:'#EF4444',data:resultData.dif||[]},
-    {label:'Reserva',   color:'#D97706',data:resultData.res||[]},
-    {label:'Efectivo',  color:'#CA8A04',data:resultData.efec||[]},
+    {label:'Nuevos hoy',        color:'#2563EB', data:all},
+    {label:'Arriendos OK',      color:'#16A34A', data:ok},
+    {label:'Con Diferencia',    color:'#EF4444', data:dif},
+    {label:'Reserva',           color:'#D97706', data:res},
+    {label:'Recuperación Caja', color:'#C2410C', data:caja},
   ];
   document.getElementById('kpiGrid').innerHTML=kpis.map((k,i)=>`
     <div class="kpi${i===0?' active':''}" onclick="clickKpi(${i})" id="kpi${i}">
@@ -304,14 +312,15 @@ function mostrarResultado(){
 
 function clickKpi(i){
   document.querySelectorAll('.kpi').forEach((k,j)=>k.classList.toggle('active',i===j));
-  const map={1:'ok',2:'dif',3:'res',4:'efec'};
-  if(map[i])switchTab(map[i]);
+  const map={1:'ok',2:'dif',3:'res',4:'caja'};
+  if(map[i]) switchTab(map[i]);
 }
 
 function switchTab(id){
   tabActiva=id;
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach((t,i)=>{if(TABS[i].id===id)t.classList.add('active');});
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active', TABS[i].id===id);
+  });
   renderTabla();
 }
 
@@ -319,17 +328,52 @@ function renderTabla(){
   if(!resultData)return;
   const q=(document.getElementById('buscador').value||'').toLowerCase();
   let data=getData(tabActiva)||[];
-  if(q)data=data.filter(r=>(r.rut||'').toLowerCase().includes(q)||(r.carpeta||'').toLowerCase().includes(q)||(r.desc||'').toLowerCase().includes(q)||(r.mes||'').toLowerCase().includes(q));
+  if(q)data=data.filter(r=>
+    (r.rut||'').toLowerCase().includes(q)||
+    (r.carpeta||'').toLowerCase().includes(q)||
+    (r.desc||'').toLowerCase().includes(q)||
+    (r.mes||'').toLowerCase().includes(q)
+  );
   document.getElementById('contador').textContent=`${data.length} registros`;
   document.getElementById('emptyState').classList.toggle('hidden',data.length>0);
-  const simple=tabActiva==='res'||tabActiva==='efec';
-  const hdrs=simple?['Fecha','RUT','Monto ($)','Mes','Estado','Descripción']:['Fecha','RUT','Monto ($)','Carpeta','Mes','Estado','Descripción'];
+
+  // Reservas: sin carpeta. Resto: con carpeta
+  const simple = tabActiva==='res';
+  const hdrs = simple
+    ? ['Fecha','RUT','Monto ($)','Mes','Estado','Descripción']
+    : ['Fecha','Carpeta','RUT','Monto ($)','Mes','Estado','Descripción'];
+
   document.getElementById('tableHead').innerHTML=`<tr>${hdrs.map(h=>`<th>${h}</th>`).join('')}</tr>`;
   document.getElementById('tableBody').innerHTML=data.map(r=>{
-    const mb=r.mes&&MES_BG[r.mes]?`<span class="badge b-mes" style="background:${MES_BG[r.mes]};color:${MES_FG[r.mes]}">${r.mes}</span>`:(r.mes||'—');
-    const eb=r.estado==='OK'?'<span class="badge b-ok">✔ OK</span>':r.estado==='RESERVA'?'<span class="badge b-reserva">★ Reserva</span>':r.estado==='EFECTIVO'?'<span class="badge b-efec">💵 Efectivo</span>':r.estado&&r.estado.startsWith('▲')?`<span class="badge b-mas">${r.estado}</span>`:`<span class="badge b-menos">${r.estado}</span>`;
-    if(simple)return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-mes">${mb}</td><td class="td-estado">${eb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
-    return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-carp">${r.carpeta}</td><td class="td-mes">${mb}</td><td class="td-estado">${eb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
+    const mb=r.mes&&MES_BG[r.mes]
+      ?`<span class="badge b-mes" style="background:${MES_BG[r.mes]};color:${MES_FG[r.mes]}">${r.mes}</span>`
+      :(r.mes||'—');
+    let eb;
+    if(r.estado==='OK')                    eb='<span class="badge b-ok">✔ OK</span>';
+    else if(r.estado==='RESERVA')          eb='<span class="badge b-reserva">★ Reserva</span>';
+    else if(r.estado==='RECUPERACIÓN CAJA')eb='<span class="badge b-caja">🏠 Rec. Caja</span>';
+    else if(r.estado&&r.estado.startsWith('▲')) eb=`<span class="badge b-mas">${r.estado}</span>`;
+    else                                   eb=`<span class="badge b-menos">${r.estado}</span>`;
+
+    if(simple){
+      return`<tr>
+        <td class="td-fecha">${r.fecha}</td>
+        <td class="td-rut">${r.rut}</td>
+        <td class="td-monto">$${fmt(r.monto)}</td>
+        <td class="td-mes">${mb}</td>
+        <td class="td-estado">${eb}</td>
+        <td class="td-desc" title="${r.desc}">${r.desc}</td>
+      </tr>`;
+    }
+    return`<tr>
+      <td class="td-fecha">${r.fecha}</td>
+      <td class="td-carp">${r.carpeta||''}</td>
+      <td class="td-rut">${r.rut}</td>
+      <td class="td-monto">$${fmt(r.monto)}</td>
+      <td class="td-mes">${mb}</td>
+      <td class="td-estado">${eb}</td>
+      <td class="td-desc" title="${r.desc}">${r.desc}</td>
+    </tr>`;
   }).join('');
 }
 
@@ -341,7 +385,12 @@ async function descargar(){
   try{
     const fd=new FormData();
     fd.append('historial',h);
-    fd.append('data',JSON.stringify({ok:resultData.ok,dif:resultData.dif,res:resultData.res,efec:resultData.efec}));
+    fd.append('data',JSON.stringify({
+      ok:   resultData.ok   ||[],
+      dif:  resultData.dif  ||[],
+      res:  resultData.res  ||[],
+      caja: resultData.caja ||[]
+    }));
     const resp=await fetch('/descargar',{method:'POST',body:fd});
     if(!resp.ok){const d=await resp.json();alert('Error: '+d.error);return;}
     const blob=await resp.blob();
@@ -369,4 +418,3 @@ function resetear(){
 </script>
 </body>
 </html>
-
