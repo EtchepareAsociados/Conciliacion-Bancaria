@@ -179,7 +179,7 @@ def detectar_mes(abonos):
     return ''
 
 # ── Clasificación por carpeta ──
-def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola, ultimo_monto_pagado=0, ya_pagado=0):
+def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola, ultimo_monto_pagado=0, ya_pagado=0, mes_ya_pagado=''):
     from collections import OrderedDict
 
     resultado        = []
@@ -189,11 +189,13 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
     acumulado_mes    = 0
     pagos_mes_actual = []
 
-    # Si ya pagó algo este período (abono previo en historial),
-    # iniciar el acumulado con ese valor para que el nuevo pago complete el arriendo
-    if ya_pagado > 0:
-        acumulado_mes = ya_pagado  # contar lo ya pagado como base
-        mes_cerrado   = False      # el mes no está cerrado aún
+    # Si hay abono pendiente del período anterior,
+    # el primer pago que llegue debe cerrarlo antes de avanzar al mes siguiente
+    if ya_pagado > 0 and mes_ya_pagado:
+        # Iniciar con el período incompleto como mes actual
+        mes_actual    = mes_ya_pagado
+        acumulado_mes = ya_pagado   # lo que ya pagó antes
+        mes_cerrado   = False       # el mes anterior no está cerrado aún
 
     def cerrar():
         nonlocal acumulado_mes, pagos_mes_actual, mes_actual, diff_pendiente
@@ -340,17 +342,32 @@ def procesar(hist_wb, cartola_wb):
         monto_esp  = match['MONTO_ESP']
 
         if carpeta_id not in carpetas:
-            # Ver cuánto ya pagó esta carpeta en el período actual (puede ser abono previo)
-            mes_actual_carp = sig_mes(ultimo_mes.get(a['rut_norm'], '')) or mes_cartola
-            ya_pagado = pagado_hist.get(f"{carpeta_id}_{mes_actual_carp}", 0)
+            # Detectar si hay abono pendiente del período anterior
+            ult_mes_rut   = ultimo_mes.get(a['rut_norm'], '')
+            mes_siguiente = sig_mes(ult_mes_rut) or mes_cartola
+
+            # ¿Cuánto pagó en el último mes registrado? (puede ser abono incompleto)
+            ya_pagado_ult = pagado_hist.get(f"{carpeta_id}_{ult_mes_rut}", 0)
+
+            # Si pagó algo en el último mes pero menos del 90% del esperado → hay abono pendiente
+            if ya_pagado_ult > 0 and ya_pagado_ult < monto_esp * 0.90:
+                # Hay abono pendiente del período anterior
+                ya_pagado     = ya_pagado_ult
+                mes_ya_pagado = ult_mes_rut   # el período que está incompleto
+            else:
+                # No hay abono pendiente, empezar mes nuevo normalmente
+                ya_pagado     = 0
+                mes_ya_pagado = ''
+
             carpetas[carpeta_id] = {
-                'carpeta':    carpeta_id,
-                'rut':        a['rut'] or 'Sin RUT',
-                'rut_norm':   a['rut_norm'] or '',
-                'monto_esp':  monto_esp,
-                'ultimo_mes': ultimo_mes.get(a['rut_norm'], ''),
-                'ya_pagado':  ya_pagado,
-                'pagos':      []
+                'carpeta':      carpeta_id,
+                'rut':          a['rut'] or 'Sin RUT',
+                'rut_norm':     a['rut_norm'] or '',
+                'monto_esp':    monto_esp,
+                'ultimo_mes':   ult_mes_rut,
+                'ya_pagado':    ya_pagado,
+                'mes_ya_pagado': mes_ya_pagado,
+                'pagos':        []
             }
         carpetas[carpeta_id]['pagos'].append({**base, 'carpeta': carpeta_id})
 
@@ -366,7 +383,8 @@ def procesar(hist_wb, cartola_wb):
             cid, info['pagos'], info['monto_esp'],
             info['ultimo_mes'], mes_cartola,
             ultimo_monto.get(info['rut_norm'], 0),
-            info.get('ya_pagado', 0)
+            info.get('ya_pagado', 0),
+            info.get('mes_ya_pagado', '')
         )
         for p in propuestas:
             todos_arr.append(p)
