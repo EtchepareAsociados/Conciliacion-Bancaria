@@ -248,6 +248,22 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
         hay_mas = fi < len(fechas) - 1
 
         if not mes_cerrado:
+            # Si hay abono pendiente del período anterior y hay múltiples pagos del mismo día,
+            # procesarlos uno por uno para que el primero cierre el período pendiente
+            if ya_pagado > 0 and len(grupo) > 1:
+                for gi, pago in enumerate(grupo):
+                    hay_mas_inner = hay_mas or gi < len(grupo) - 1
+                    acumulado_mes    += pago['monto']
+                    pagos_mes_actual += [pago]
+                    ratio_inner = acumulado_mes / monto_esp if monto_esp > 0 else 1
+                    if ratio_inner >= 1.0:
+                        cerrar()
+                        mes_cerrado = True
+                    elif not hay_mas_inner:
+                        cerrar()
+                        mes_cerrado = True
+                continue
+
             # Múltiples pagos del mismo día, cada uno >= 70% → meses distintos
             if len(grupo) > 1 and all(p['monto'] / monto_esp >= 0.70 for p in grupo):
                 for pago in grupo:
