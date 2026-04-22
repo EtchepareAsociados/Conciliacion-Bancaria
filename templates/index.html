@@ -59,7 +59,7 @@ input[type=file]{display:none}
 .progress p{font-size:12px;color:#1D4ED8;font-weight:500}
 .alert-err{display:none;background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:10px 16px;border-radius:8px;font-size:12px;margin-bottom:12px}
 .update-info{display:none;background:#F0FDF4;border:1px solid #BBF7D0;color:#14532D;padding:10px 16px;border-radius:8px;font-size:12px;margin-bottom:14px}
-.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);border:1px solid var(--gray-b);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--gray-b);border-radius:10px;overflow:hidden;margin-bottom:16px}
 .kpi{padding:14px;border-right:1px solid var(--gray-b);background:#fff;cursor:pointer;transition:background .15s}
 .kpi:last-child{border-right:none}
 .kpi:hover,.kpi.active{background:#EFF6FF}
@@ -320,12 +320,12 @@ async function procesar(){
       };
     });
 
-    const ok=data.ok||[], dif=data.dif||[], rea=data.reajuste||[], res=data.res||[], caja=data.caja||[];
-    const total=ok.length+dif.length+rea.length+res.length+caja.length;
+    const arr=data.arr||[], res=data.res||[], caja=data.caja||[];
+    const total=arr.length+res.length+caja.length;
     if(total===0){
       info.textContent='✓ Todos los depósitos ya estaban en el historial. No hay registros nuevos.';
     }else{
-      info.textContent=`✓ ${total} depósitos nuevos: ${ok.length} OK · ${dif.length} diferencias · ${rea.length} reajustes · ${res.length} reservas · ${caja.length} rec. caja.`;
+      info.textContent=`✓ ${total} depósitos nuevos: ${arr.length} arriendos · ${res.length} reservas · ${caja.length} rec. caja.`;
     }
     info.style.display='block';
     mostrarResultado();
@@ -341,17 +341,14 @@ async function procesar(){
 
 function mostrarResultado(){
   document.getElementById('secResultado').classList.remove('hidden');
-  const ok=resultData.ok||[], dif=resultData.dif||[], rea=resultData.reajuste||[];
-  const res=resultData.res||[], caja=resultData.caja||[];
-  const all=[...ok,...dif,...rea,...res,...caja];
+  const arr=resultData.arr||[], res=resultData.res||[], caja=resultData.caja||[];
+  const all=[...arr,...res,...caja];
 
   const kpis=[
-    {label:'Total nuevos',      color:'#2563EB', data:all},
-    {label:'Arriendos OK',      color:'#16A34A', data:ok},
-    {label:'Con Diferencia',    color:'#EF4444', data:dif},
-    {label:'Reajustes',         color:'#D97706', data:rea},
-    {label:'Reservas',          color:'#92400E', data:res},
-    {label:'Rec. Caja',         color:'#C2410C', data:caja},
+    {label:'Total nuevos',   color:'#2563EB', data:all},
+    {label:'Arriendos',      color:'#1F3864', data:arr},
+    {label:'Reservas',       color:'#92400E', data:res},
+    {label:'Rec. Caja',      color:'#C2410C', data:caja},
   ];
   document.getElementById('kpiGrid').innerHTML=kpis.map((k,i)=>`
     <div class="kpi${i===0?' active':''}" id="kpi${i}" onclick="clickKpi(${i})">
@@ -511,11 +508,9 @@ function setObs(carpeta, obs){
 
 // ── Vista tabla ──
 const TABS=[
-  {id:'ok',       label:'✔ OK',           bg:'#DCFCE7',fg:'#14532D'},
-  {id:'dif',      label:'⚡ Diferencia',   bg:'#FEE2E2',fg:'#991B1B'},
-  {id:'reajuste', label:'⚠️ Reajuste',     bg:'#FEF3C7',fg:'#92400E'},
-  {id:'res',      label:'★ Reserva',       bg:'#FEF3C7',fg:'#92400E'},
-  {id:'caja',     label:'🏠 Rec. Caja',    bg:'#FED7AA',fg:'#7C2D12'},
+  {id:'arr',  label:'🏠 Arriendos',    bg:'#DBEAFE',fg:'#1E3A8A'},
+  {id:'res',  label:'★ Reserva',      bg:'#FEF3C7',fg:'#92400E'},
+  {id:'caja', label:'🏠 Rec. Caja',   bg:'#FED7AA',fg:'#7C2D12'},
 ];
 const getData=id=>resultData?(resultData[id]||[]):[];
 
@@ -535,7 +530,7 @@ function switchTab(id){
 
 function clickKpi(i){
   document.querySelectorAll('.kpi').forEach((k,j)=>k.classList.toggle('active',i===j));
-  const map={1:'ok',2:'dif',3:'reajuste',4:'res',5:'caja'};
+  const map={1:'arr',2:'res',3:'caja'};
   if(map[i]){setVista('tabla');switchTab(map[i]);}
 }
 
@@ -553,12 +548,14 @@ function renderTabla(){
   document.getElementById('tableBody').innerHTML=data.map(r=>{
     const mb=r.mes&&MES_BG[r.mes]?`<span class="badge b-mes" style="background:${MES_BG[r.mes]};color:${MES_FG[r.mes]}">${r.mes}</span>`:(r.mes||'—');
     let eb;
-    if(r.estado==='OK')                     eb='<span class="badge b-ok">✔ OK</span>';
+    const est=r.estado||r.obs||'';
+    if(r.estado==='OK'||r.estado==='')      eb='<span class="badge b-ok">✔ OK</span>';
     else if(r.estado==='RESERVA')           eb='<span class="badge b-reserva">★ Reserva</span>';
     else if(r.estado==='RECUPERACIÓN CAJA') eb='<span class="badge b-caja">🏠 Rec. Caja</span>';
     else if(r.estado&&r.estado.includes('REAJUSTE')) eb=`<span class="badge b-reajuste">${r.estado}</span>`;
     else if(r.estado&&r.estado.startsWith('▲')) eb=`<span class="badge b-mas">${r.estado}</span>`;
-    else eb=`<span class="badge b-menos">${r.estado||''}</span>`;
+    else if(r.estado&&r.estado.startsWith('▼')) eb=`<span class="badge b-menos">${r.estado}</span>`;
+    else eb=`<span class="badge b-ok">${r.estado}</span>`;
 
     if(simple)return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-mes">${mb}</td><td class="td-estado">${eb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
     return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-carp">${r.carpeta||''}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-mes">${mb}</td><td class="td-estado">${eb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
@@ -572,25 +569,26 @@ async function descargar(){
   document.getElementById('progBar').classList.add('show');
   try{
     // Aplicar decisiones a los datos antes de descargar
-    const ok=[], dif=[], reajuste=[], res=resultData.res||[], caja=resultData.caja||[];
+    // Construir lista arriendos aplicando decisiones del usuario
+    const arr=[], res=resultData.res||[], caja=resultData.caja||[];
     (resultData.carpetas||[]).forEach(c=>{
       const dec=decisiones[c.carpeta]||{clasificacion:c.propuesta||'dif',mes:c.mes,obs:''};
       c.pagos.forEach(p=>{
-        const item={...p, carpeta:c.carpeta, mes:dec.mes||c.mes, obs:dec.obs||''};
-        if(dec.clasificacion==='ok'){item.estado='OK';ok.push(item);}
-        else if(dec.clasificacion==='reajuste'){item.estado='⚠️ REAJUSTE PENDIENTE';reajuste.push(item);}
-        else if(dec.clasificacion==='caja'){item.estado='RECUPERACIÓN CAJA';caja.push(item);}
-        else{
-          const diff=c.diff;
-          item.estado=diff>0?`▲ DE MÁS +$${fmt(diff)}`:`▼ DE MENOS -$${fmt(Math.abs(diff))}`;
-          dif.push(item);
-        }
+        const item={...p, carpeta:c.carpeta, mes:dec.mes||p.mes||c.mes,
+          obs: dec.obs||p.obs||'',
+          clasificacion: dec.clasificacion||p.clasificacion||'dif'};
+        arr.push(item);
       });
+    });
+    // Agregar arriendos OK que no pasaron por revisión (van directo)
+    (resultData.arr||[]).forEach(r=>{
+      const yaEsta = arr.find(a=>a.fecha===r.fecha && a.monto===r.monto && a.rut===r.rut);
+      if(!yaEsta) arr.push(r);
     });
 
     const fd=new FormData();
     fd.append('historial',h);
-    fd.append('data',JSON.stringify({ok,dif,reajuste,res,caja}));
+    fd.append('data',JSON.stringify({arr,res,caja}));
     const resp=await fetch('/descargar',{method:'POST',body:fd});
     if(!resp.ok){const d=await resp.json();alert('Error: '+d.error);return;}
     const blob=await resp.blob();
