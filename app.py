@@ -325,6 +325,10 @@ def procesar(hist_wb, cartola_wb):
     for cid, info in carpetas.items():
         info['pagos'] = sorted(info['pagos'], key=lambda x: x['idx'])
 
+    # Una sola llamada por carpeta — resultado va a res_arr y vista
+    vista_carpetas = []
+    todos_arr = []
+
     for cid, info in carpetas.items():
         propuestas = proponer_clasificacion(
             cid, info['pagos'], info['monto_esp'],
@@ -332,42 +336,30 @@ def procesar(hist_wb, cartola_wb):
             ultimo_monto.get(info['rut_norm'], 0)
         )
         for p in propuestas:
-            if p['clasificacion'] == 'ok':
-                res_ok.append(p)
-            else:
-                res_dif.append(p)
+            todos_arr.append(p)
 
-    # Unir todos los arriendos y ordenar por fecha de cartola (idx)
-    res_arr  = sorted(res_ok + res_dif, key=lambda x: x['idx'])
-    res_res  = sorted(res_res,          key=lambda x: x['idx'])
-    res_caja = sorted(res_caja,         key=lambda x: x['idx'])
-
-    # Vista interactiva — solo carpetas con algo que revisar
-    vista_carpetas = []
-    for cid, info in sorted(carpetas.items(), key=lambda x: x[0]):
-        propuestas = proponer_clasificacion(
-            cid, info['pagos'], info['monto_esp'],
-            info['ultimo_mes'], mes_cartola,
-            ultimo_monto.get(info['rut_norm'], 0)
-        )
+        # Vista: solo carpetas con diferencia o múltiples pagos
         estado_prop = propuestas[0]['clasificacion'] if propuestas else 'dif'
-        # Solo mostrar en vista si hay diferencia o múltiples pagos
-        if estado_prop == 'ok' and len(info['pagos']) == 1:
+        tiene_dif   = any(p['clasificacion'] != 'ok' for p in propuestas)
+        if not tiene_dif and len(info['pagos']) == 1:
             continue
 
-        pagos_enriquecidos = [{**p, 'diff_ind': p['monto'] - info['monto_esp']} for p in propuestas]
         total = sum(p['monto'] for p in info['pagos'])
-
         vista_carpetas.append({
             'carpeta':   cid,
             'rut':       info['rut'],
             'monto_esp': info['monto_esp'],
             'total_pag': total,
             'n_pagos':   len(info['pagos']),
-            'pagos':     pagos_enriquecidos,
+            'pagos':     propuestas,
             'propuesta': estado_prop,
             'mes':       sig_mes(info['ultimo_mes']) or mes_cartola,
         })
+
+    # Ordenar TODO por idx (orden exacto de la cartola bancaria)
+    res_arr  = sorted(todos_arr, key=lambda x: x['idx'])
+    res_res  = sorted(res_res,   key=lambda x: x['idx'])
+    res_caja = sorted(res_caja,  key=lambda x: x['idx'])
 
     return res_arr, res_res, res_caja, mes_cartola, vista_carpetas
 
