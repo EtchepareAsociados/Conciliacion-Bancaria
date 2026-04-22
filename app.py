@@ -129,11 +129,18 @@ def parse_historial(wb):
                 except: pass
 
             # Acumular pagos por carpeta+período para detectar abonos pendientes
-            if carpeta and monto and periodo in MESES:
+            if monto and periodo in MESES:
                 try:
                     monto_int = int(float(monto))
-                    key_cp = f"{carpeta}_{periodo}"
-                    pagado_hist[key_cp] = pagado_hist.get(key_cp, 0) + monto_int
+                    # Indexar por carpeta si existe
+                    if carpeta and str(carpeta).strip() not in ['', 'nan', 'None']:
+                        carp_norm = str(carpeta).strip()
+                        key_cp    = f"{carp_norm}_{periodo}"
+                        pagado_hist[key_cp] = pagado_hist.get(key_cp, 0) + monto_int
+                    # También indexar por RUT como fallback (cubre RESERVAS con carpeta vacía)
+                    if rut:
+                        key_rut = f"RUT_{rut}_{periodo}"
+                        pagado_hist[key_rut] = pagado_hist.get(key_rut, 0) + monto_int
                 except: pass
 
             if rut and periodo in MESES:
@@ -344,18 +351,19 @@ def procesar(hist_wb, cartola_wb):
         if carpeta_id not in carpetas:
             # Detectar si hay abono pendiente del período anterior
             ult_mes_rut   = ultimo_mes.get(a['rut_norm'], '')
-            mes_siguiente = sig_mes(ult_mes_rut) or mes_cartola
+            carp_norm     = str(carpeta_id).strip()
 
             # ¿Cuánto pagó en el último mes registrado? (puede ser abono incompleto)
-            ya_pagado_ult = pagado_hist.get(f"{carpeta_id}_{ult_mes_rut}", 0)
+            # Buscar primero por carpeta, luego por RUT como fallback
+            ya_pagado_ult = pagado_hist.get(f"{carp_norm}_{ult_mes_rut}", 0)
+            if ya_pagado_ult == 0 and a.get('rut_norm'):
+                ya_pagado_ult = pagado_hist.get(f"RUT_{a['rut_norm']}_{ult_mes_rut}", 0)
 
             # Si pagó algo en el último mes pero menos del 90% del esperado → hay abono pendiente
             if ya_pagado_ult > 0 and ya_pagado_ult < monto_esp * 0.90:
-                # Hay abono pendiente del período anterior
                 ya_pagado     = ya_pagado_ult
-                mes_ya_pagado = ult_mes_rut   # el período que está incompleto
+                mes_ya_pagado = ult_mes_rut
             else:
-                # No hay abono pendiente, empezar mes nuevo normalmente
                 ya_pagado     = 0
                 mes_ya_pagado = ''
 
