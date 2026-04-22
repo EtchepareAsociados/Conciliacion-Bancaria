@@ -207,13 +207,13 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
         elif diff > 0:  estado = f'▲ DE MÁS +${diff:,.0f}';       clasificacion = 'dif'
         else:           estado = f'▼ DE MENOS -${abs(diff):,.0f}'; clasificacion = 'dif'
         diff_pendiente = abs(diff) if diff < 0 else 0
-        # Smart obs: detectar si pagó igual que mes anterior (posible reajuste)
-        if obs == '' and clasificacion == 'dif' and ultimo_monto_pagado > 0:
+        # Smart obs: siempre inicializar primero
+        obs = ''
+        if len(pagos_mes_actual) > 1:
+            obs = f'Pago fraccionado — total ${total:,.0f}'
+        if clasificacion == 'dif' and ultimo_monto_pagado > 0:
             if abs(total - ultimo_monto_pagado) <= max(ultimo_monto_pagado * 0.02, 3000):
                 obs = f'Pagó igual que mes anterior (${ultimo_monto_pagado:,.0f}) — posible reajuste pendiente'
-        elif len(pagos_mes_actual) > 1:
-            obs = f'Pago fraccionado — total ${total:,.0f}'
-
         for p in pagos_mes_actual:
             resultado.append({**p, 'carpeta': carpeta_id,
                 'mes': mes_actual, 'estado': estado,
