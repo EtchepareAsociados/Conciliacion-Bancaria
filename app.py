@@ -385,10 +385,10 @@ def procesar(hist_wb, cartola_wb):
             else:
                 res_dif.append(p)
 
-    res_ok   = sorted(res_ok,   key=lambda x: x['idx'])
-    res_dif  = sorted(res_dif,  key=lambda x: x['idx'])
-    res_res  = sorted(res_res,  key=lambda x: x['idx'])
-    res_caja = sorted(res_caja, key=lambda x: x['idx'])
+    # Unir OK y DIF en una sola lista ARRIENDOS ordenada por fecha
+    res_arr  = sorted(res_ok + res_dif, key=lambda x: x['idx'])
+    res_res  = sorted(res_res,          key=lambda x: x['idx'])
+    res_caja = sorted(res_caja,         key=lambda x: x['idx'])
 
     # Vista interactiva — lista de carpetas con resumen
     vista_carpetas = []
