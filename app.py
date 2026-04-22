@@ -375,8 +375,12 @@ def procesar(hist_wb, cartola_wb):
             if ya_pagado_ult == 0 and a.get('rut_norm'):
                 ya_pagado_ult = pagado_hist.get(f"RUT_{a['rut_norm']}_{ult_mes_rut}", 0)
 
-            # Si pagó algo en el último mes pero menos del 90% del esperado → hay abono pendiente
-            if ya_pagado_ult > 0 and ya_pagado_ult < monto_esp * 0.90:
+            # Abono pendiente solo si pagó menos del 70% del monto de referencia
+            # Usar el menor entre monto_esp actual y ultimo_monto pagado
+            # Evita falsos positivos cuando el monto cambió recientemente
+            monto_ref = ultimo_monto.get(a['rut_norm'], monto_esp)
+            umbral = min(monto_esp, monto_ref) * 0.70
+            if ya_pagado_ult > 0 and ya_pagado_ult < umbral:
                 ya_pagado     = ya_pagado_ult
                 mes_ya_pagado = ult_mes_rut
             else:
