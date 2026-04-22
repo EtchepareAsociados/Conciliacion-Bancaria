@@ -100,12 +100,10 @@ def find_match_caja(rut_norm):
 
 # ── Parse historial ──
 def parse_historial(wb):
-    keys                = set()
-    ultimo_mes          = {}
-    ultimo_monto        = {}
-    diff_pendiente_hist = {}  # carpeta_id → diferencia pendiente (negativa = debe)
-    # Para rastrear pagos por carpeta y detectar abonos incompletos
-    pagos_por_carpeta   = {}  # carpeta_id → {periodo: [montos]}
+    keys         = set()
+    ultimo_mes   = {}
+    ultimo_monto = {}
+    pagado_hist  = {}  # carpeta_id → total pagado en el último período registrado
     sheets_validas = ['ARRIENDOS','ARRIENDOS OK','ARRIENDOS CON DIFERENCIAS',
                       'REAJUSTES PENDIENTES','RESERVAS','RECUPERACIÓN CAJA']
     for sname in wb.sheetnames:
@@ -119,27 +117,23 @@ def parse_historial(wb):
                 break
         for row in rows[data_start:]:
             if not row or not row[0]: continue
-            fecha   = str(row[0]).strip() if row[0] else ''
-            desc    = str(row[3]).strip() if row[3] else ''
-            monto   = row[4]
-            periodo = str(row[5]).strip().upper() if row[5] else ''
-            rut     = norm_rut(extract_rut(desc))
+            fecha    = str(row[0]).strip() if row[0] else ''
+            carpeta  = str(row[1]).strip() if row[1] else ''
+            desc     = str(row[3]).strip() if row[3] else ''
+            monto    = row[4]
+            periodo  = str(row[5]).strip().upper() if row[5] else ''
+            rut      = norm_rut(extract_rut(desc))
+
             if fecha and monto:
                 try: keys.add(f"{rut}|{int(float(monto))}|{fecha}")
                 except: pass
-            # Rastrear carpeta para detectar diferencias pendientes
-            carpeta_col = str(row[1]).strip() if len(row) > 1 and row[1] else ''
-            estado_col  = str(row[6]).strip() if len(row) > 6 and row[6] else ''
-            if carpeta_col and carpeta_col not in ['None', 'nan', '']:
+
+            # Acumular pagos por carpeta+período para detectar abonos pendientes
+            if carpeta and monto and periodo in MESES:
                 try:
                     monto_int = int(float(monto))
-                    if carpeta_col not in pagos_por_carpeta:
-                        pagos_por_carpeta[carpeta_col] = {}
-                    if periodo not in pagos_por_carpeta[carpeta_col]:
-                        pagos_por_carpeta[carpeta_col][periodo] = []
-                    pagos_por_carpeta[carpeta_col][periodo].append({
-                        'monto': monto_int, 'estado': estado_col
-                    })
+                    key_cp = f"{carpeta}_{periodo}"
+                    pagado_hist[key_cp] = pagado_hist.get(key_cp, 0) + monto_int
                 except: pass
 
             if rut and periodo in MESES:
@@ -156,35 +150,8 @@ def parse_historial(wb):
                     try: ultimo_monto[rut] = int(float(monto))
                     except: pass
 
-    # Calcular diferencias pendientes por carpeta
-    # Si el último periodo de una carpeta tiene estado con "ABONO" o "DE MENOS", hay diff pendiente
-    for carpeta_id, periodos in pagos_por_carpeta.items():
-        if not periodos: continue
-        # Tomar el período más reciente
-        ultimo_periodo = None
-        ultimo_idx = -1
-        for per in periodos:
-            if per in MESES:
-                idx_per = MESES.index(per)
-                if idx_per > ultimo_idx:
-                    ultimo_idx = idx_per
-                    ultimo_periodo = per
-        if not ultimo_periodo: continue
-        pagos_ult = periodos[ultimo_periodo]
-        # Verificar si hay un pago con estado ABONO (indica que falta el saldo)
-        for p in pagos_ult:
-            if 'ABONO' in p['estado'].upper():
-                # Hay un abono sin saldo — registrar como diferencia pendiente
-                total_abonado = sum(px['monto'] for px in pagos_ult)
-                diff_pendiente_hist[carpeta_id] = {
-                    'total_abonado': total_abonado,
-                    'periodo': ultimo_periodo
-                }
-                break
+    return keys, ultimo_mes, ultimo_monto, pagado_hist
 
-    return keys, ultimo_mes, ultimo_monto, diff_pendiente_hist
-
-# ── Parse cartola ──
 def parse_cartola(wb):
     ws = wb.active
     rows = list(ws.iter_rows(values_only=True))
@@ -212,7 +179,7 @@ def detectar_mes(abonos):
     return ''
 
 # ── Clasificación por carpeta ──
-def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola, ultimo_monto_pagado=0, abono_pendiente=0):
+def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola, ultimo_monto_pagado=0, ya_pagado=0):
     from collections import OrderedDict
 
     resultado        = []
@@ -222,11 +189,11 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
     acumulado_mes    = 0
     pagos_mes_actual = []
 
-    # Si hay un abono pendiente del historial, iniciar acumulado con ese valor
-    # El nuevo pago puede ser el saldo que completa ese arriendo
-    if abono_pendiente > 0:
-        acumulado_mes = abono_pendiente  # ya pagado antes, contar como base
-        # No agregar a pagos_mes_actual — ya están en el historial
+    # Si ya pagó algo este período (abono previo en historial),
+    # iniciar el acumulado con ese valor para que el nuevo pago complete el arriendo
+    if ya_pagado > 0:
+        acumulado_mes = ya_pagado  # contar lo ya pagado como base
+        mes_cerrado   = False      # el mes no está cerrado aún
 
     def cerrar():
         nonlocal acumulado_mes, pagos_mes_actual, mes_actual, diff_pendiente
@@ -334,7 +301,7 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
 
 # ── Procesar ──
 def procesar(hist_wb, cartola_wb):
-    hist_keys, ultimo_mes, ultimo_monto, diff_pendiente_hist = parse_historial(hist_wb)
+    hist_keys, ultimo_mes, ultimo_monto, pagado_hist = parse_historial(hist_wb)
     abonos = parse_cartola(cartola_wb)
     mes_cartola = detectar_mes(abonos)
 
@@ -373,13 +340,16 @@ def procesar(hist_wb, cartola_wb):
         monto_esp  = match['MONTO_ESP']
 
         if carpeta_id not in carpetas:
+            # Ver cuánto ya pagó esta carpeta en el período actual (puede ser abono previo)
+            mes_actual_carp = sig_mes(ultimo_mes.get(a['rut_norm'], '')) or mes_cartola
+            ya_pagado = pagado_hist.get(f"{carpeta_id}_{mes_actual_carp}", 0)
             carpetas[carpeta_id] = {
                 'carpeta':    carpeta_id,
                 'rut':        a['rut'] or 'Sin RUT',
                 'rut_norm':   a['rut_norm'] or '',
                 'monto_esp':  monto_esp,
                 'ultimo_mes': ultimo_mes.get(a['rut_norm'], ''),
-                'abono_pendiente': diff_pendiente_hist.get(carpeta_id, {}).get('total_abonado', 0),
+                'ya_pagado':  ya_pagado,
                 'pagos':      []
             }
         carpetas[carpeta_id]['pagos'].append({**base, 'carpeta': carpeta_id})
@@ -396,7 +366,7 @@ def procesar(hist_wb, cartola_wb):
             cid, info['pagos'], info['monto_esp'],
             info['ultimo_mes'], mes_cartola,
             ultimo_monto.get(info['rut_norm'], 0),
-            info.get('abono_pendiente', 0)
+            info.get('ya_pagado', 0)
         )
         for p in propuestas:
             todos_arr.append(p)
