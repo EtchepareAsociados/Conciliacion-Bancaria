@@ -30,6 +30,12 @@
     "MONEDA": "CLP"
   },
   {
+    "CARPETA": "125",
+    "RESPONSABLE": "160881879",
+    "MONTO_ESP": 350000,
+    "MONEDA": "CLP"
+  },
+  {
     "CARPETA": "126",
     "RESPONSABLE": "270323642",
     "MONTO_ESP": 268791,
@@ -278,7 +284,7 @@
   {
     "CARPETA": "246",
     "RESPONSABLE": "124368391",
-    "MONTO_ESP": 362025,
+    "MONTO_ESP": 60000,
     "MONEDA": "CLP"
   },
   {
@@ -360,6 +366,12 @@
     "MONEDA": "CLP"
   },
   {
+    "CARPETA": "312",
+    "RESPONSABLE": "18768028K",
+    "MONTO_ESP": 600000,
+    "MONEDA": "CLP"
+  },
+  {
     "CARPETA": "314",
     "RESPONSABLE": "196864482",
     "MONTO_ESP": 743888,
@@ -368,7 +380,7 @@
   {
     "CARPETA": "315",
     "RESPONSABLE": "130388515",
-    "MONTO_ESP": 460000,
+    "MONTO_ESP": 464405,
     "MONEDA": "CLP"
   },
   {
@@ -421,8 +433,8 @@
   },
   {
     "CARPETA": "331",
-    "RESPONSABLE": "189366485",
-    "MONTO_ESP": 634687,
+    "RESPONSABLE": "156405256",
+    "MONTO_ESP": 650000,
     "MONEDA": "CLP"
   },
   {
@@ -465,6 +477,12 @@
     "CARPETA": "340",
     "RESPONSABLE": "171803241",
     "MONTO_ESP": 385000,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "344",
+    "RESPONSABLE": "134506881",
+    "MONTO_ESP": 350000,
     "MONEDA": "CLP"
   },
   {
@@ -567,6 +585,12 @@
     "CARPETA": "376",
     "RESPONSABLE": "237391128",
     "MONTO_ESP": 300119,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "377",
+    "RESPONSABLE": "190555259",
+    "MONTO_ESP": 435000,
     "MONEDA": "CLP"
   },
   {
@@ -1087,8 +1111,8 @@
   },
   {
     "CARPETA": "579",
-    "RESPONSABLE": "140123234",
-    "MONTO_ESP": 253347,
+    "RESPONSABLE": "113396377",
+    "MONTO_ESP": 263000,
     "MONEDA": "CLP"
   },
   {
@@ -1165,7 +1189,7 @@
   },
   {
     "CARPETA": "622",
-    "RESPONSABLE": "162142321",
+    "RESPONSABLE": "164173593",
     "MONTO_ESP": 850000,
     "MONEDA": "CLP"
   },
@@ -1221,6 +1245,12 @@
     "CARPETA": "639",
     "RESPONSABLE": "193223214",
     "MONTO_ESP": 1407354,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "643",
+    "RESPONSABLE": "780841877",
+    "MONTO_ESP": 760000,
     "MONEDA": "CLP"
   },
   {
@@ -1332,6 +1362,12 @@
     "MONEDA": "CLP"
   },
   {
+    "CARPETA": "679",
+    "RESPONSABLE": "772582234",
+    "MONTO_ESP": 40000,
+    "MONEDA": "CLP"
+  },
+  {
     "CARPETA": "680",
     "RESPONSABLE": "141667947",
     "MONTO_ESP": 963006,
@@ -1380,6 +1416,12 @@
     "MONEDA": "CLP"
   },
   {
+    "CARPETA": "691",
+    "RESPONSABLE": "94875366",
+    "MONTO_ESP": 1339324,
+    "MONEDA": "CLP"
+  },
+  {
     "CARPETA": "692",
     "RESPONSABLE": "162788353",
     "MONTO_ESP": 404151,
@@ -1387,7 +1429,7 @@
   },
   {
     "CARPETA": "695",
-    "RESPONSABLE": "176039817",
+    "RESPONSABLE": "186688996",
     "MONTO_ESP": 850000,
     "MONEDA": "CLP"
   },
@@ -1683,6 +1725,12 @@
     "CARPETA": "762",
     "RESPONSABLE": "92706494",
     "MONTO_ESP": 458244,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "767",
+    "RESPONSABLE": "28045723K",
+    "MONTO_ESP": 345000,
     "MONEDA": "CLP"
   },
   {
@@ -2094,6 +2142,12 @@
     "MONEDA": "CLP"
   },
   {
+    "CARPETA": "885",
+    "RESPONSABLE": "122458490",
+    "MONTO_ESP": 720000,
+    "MONEDA": "CLP"
+  },
+  {
     "CARPETA": "886",
     "RESPONSABLE": "174883203",
     "MONTO_ESP": 252966,
@@ -2257,8 +2311,8 @@
   },
   {
     "CARPETA": "919",
-    "RESPONSABLE": "141191586",
-    "MONTO_ESP": 647593,
+    "RESPONSABLE": "186407814",
+    "MONTO_ESP": 675000,
     "MONEDA": "CLP"
   },
   {
@@ -2293,7 +2347,7 @@
   },
   {
     "CARPETA": "928",
-    "RESPONSABLE": "85086812",
+    "RESPONSABLE": "91776049",
     "MONTO_ESP": 950000,
     "MONEDA": "CLP"
   },
@@ -2439,6 +2493,12 @@
     "CARPETA": "964",
     "RESPONSABLE": "153396620",
     "MONTO_ESP": 495707,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "966",
+    "RESPONSABLE": "194272073",
+    "MONTO_ESP": 475000,
     "MONEDA": "CLP"
   },
   {
@@ -2840,13 +2900,19 @@
   {
     "CARPETA": "1063",
     "RESPONSABLE": "259705630",
-    "MONTO_ESP": 375267,
+    "MONTO_ESP": 350000,
     "MONEDA": "CLP"
   },
   {
     "CARPETA": "1064",
     "RESPONSABLE": "266298684",
     "MONTO_ESP": 650000,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "1065",
+    "RESPONSABLE": "122426491",
+    "MONTO_ESP": 550000,
     "MONEDA": "CLP"
   },
   {
@@ -2931,12 +2997,6 @@
     "CARPETA": "1093",
     "RESPONSABLE": "103336198",
     "MONTO_ESP": 907378,
-    "MONEDA": "CLP"
-  },
-  {
-    "CARPETA": "1094",
-    "RESPONSABLE": "139383834",
-    "MONTO_ESP": 386426,
     "MONEDA": "CLP"
   },
   {
@@ -3060,6 +3120,12 @@
     "MONEDA": "CLP"
   },
   {
+    "CARPETA": "1126",
+    "RESPONSABLE": "202861172",
+    "MONTO_ESP": 305000,
+    "MONEDA": "CLP"
+  },
+  {
     "CARPETA": "1127",
     "RESPONSABLE": "153800758",
     "MONTO_ESP": 448919,
@@ -3104,7 +3170,7 @@
   {
     "CARPETA": "1138",
     "RESPONSABLE": "170440897",
-    "MONTO_ESP": 1426453,
+    "MONTO_ESP": 1440113,
     "MONEDA": "CLP"
   },
   {
@@ -3386,7 +3452,7 @@
   {
     "CARPETA": "1207",
     "RESPONSABLE": "139369270",
-    "MONTO_ESP": 1015623,
+    "MONTO_ESP": 1005989,
     "MONEDA": "CLP"
   },
   {
@@ -3924,6 +3990,12 @@
     "MONEDA": "CLP"
   },
   {
+    "CARPETA": "1337",
+    "RESPONSABLE": "189322089",
+    "MONTO_ESP": 350000,
+    "MONEDA": "CLP"
+  },
+  {
     "CARPETA": "1339",
     "RESPONSABLE": "18168366K",
     "MONTO_ESP": 947864,
@@ -3998,7 +4070,7 @@
   {
     "CARPETA": "1356",
     "RESPONSABLE": "177799718",
-    "MONTO_ESP": 533776,
+    "MONTO_ESP": 561869,
     "MONEDA": "UF"
   },
   {
@@ -4232,7 +4304,7 @@
   {
     "CARPETA": "1401",
     "RESPONSABLE": "192916763",
-    "MONTO_ESP": 1018583,
+    "MONTO_ESP": 1008921,
     "MONEDA": "CLP"
   },
   {
@@ -4518,6 +4590,12 @@
     "MONEDA": "CLP"
   },
   {
+    "CARPETA": "1460",
+    "RESPONSABLE": "185200949",
+    "MONTO_ESP": 500000,
+    "MONEDA": "CLP"
+  },
+  {
     "CARPETA": "1461",
     "RESPONSABLE": "168470940",
     "MONTO_ESP": 524328,
@@ -4617,6 +4695,12 @@
     "CARPETA": "1481",
     "RESPONSABLE": "778292939",
     "MONTO_ESP": 517178,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "1482",
+    "RESPONSABLE": "282097575",
+    "MONTO_ESP": 200000,
     "MONEDA": "CLP"
   },
   {
@@ -4867,7 +4951,7 @@
   },
   {
     "CARPETA": "1529",
-    "RESPONSABLE": "161894613",
+    "RESPONSABLE": "168615191",
     "MONTO_ESP": 390000,
     "MONEDA": "CLP"
   },
@@ -5001,6 +5085,18 @@
     "CARPETA": "1552",
     "RESPONSABLE": "108166010",
     "MONTO_ESP": 890000,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "1553",
+    "RESPONSABLE": "144764277",
+    "MONTO_ESP": 1100000,
+    "MONEDA": "CLP"
+  },
+  {
+    "CARPETA": "1555",
+    "RESPONSABLE": "170461657",
+    "MONTO_ESP": 850000,
     "MONEDA": "CLP"
   }
 ]
