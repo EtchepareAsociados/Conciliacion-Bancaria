@@ -41,7 +41,6 @@ def save_decisiones(d):
     with open(DECISIONES_PATH, 'w', encoding='utf-8') as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
 
-# ── Helpers ──
 def extract_rut(desc):
     if not desc or pd.isna(desc): return None
     m = re.match(r'^(\d{7,10}[Kk]?)\s', str(desc))
@@ -56,7 +55,6 @@ def sig_mes(p):
     u = str(p).strip().upper()
     return MESES[(MESES.index(u)+1)%12] if u in MESES else ''
 
-# ── Load BDs ──
 def load_bd():
     bd_path = os.path.join(os.path.dirname(__file__), 'bd_arrendatarios.json')
     with open(bd_path, encoding='utf-8') as f:
@@ -98,12 +96,11 @@ def find_match_caja(rut_norm):
     if not rut_norm or rut_norm not in BD_CAJA_LOOKUP: return None
     return BD_CAJA_LOOKUP[rut_norm][0]
 
-# ── Parse historial ──
 def parse_historial(wb):
     keys         = set()
     ultimo_mes   = {}
     ultimo_monto = {}
-    pagado_hist  = {}  # carpeta_id → total pagado en el último período registrado
+    pagado_hist  = {}
     sheets_validas = ['ARRIENDOS','ARRIENDOS OK','ARRIENDOS CON DIFERENCIAS',
                       'REAJUSTES PENDIENTES','RESERVAS','RECUPERACIÓN CAJA']
     for sname in wb.sheetnames:
@@ -128,16 +125,13 @@ def parse_historial(wb):
                 try: keys.add(f"{rut}|{int(float(monto))}|{fecha}")
                 except: pass
 
-            # Acumular pagos por carpeta+período para detectar abonos pendientes
             if monto and periodo in MESES:
                 try:
                     monto_int = int(float(monto))
-                    # Indexar por carpeta si existe
                     if carpeta and str(carpeta).strip() not in ['', 'nan', 'None']:
                         carp_norm = str(carpeta).strip()
                         key_cp    = f"{carp_norm}_{periodo}"
                         pagado_hist[key_cp] = pagado_hist.get(key_cp, 0) + monto_int
-                    # También indexar por RUT como fallback (cubre RESERVAS con carpeta vacía)
                     if rut:
                         key_rut = f"RUT_{rut}_{periodo}"
                         pagado_hist[key_rut] = pagado_hist.get(key_rut, 0) + monto_int
@@ -185,7 +179,6 @@ def detectar_mes(abonos):
             except: pass
     return ''
 
-# ── Clasificación por carpeta ──
 def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola, ultimo_monto_pagado=0, ya_pagado=0, mes_ya_pagado=''):
     from collections import OrderedDict
 
@@ -196,13 +189,10 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
     acumulado_mes    = 0
     pagos_mes_actual = []
 
-    # Si hay abono pendiente del período anterior,
-    # el primer pago que llegue debe cerrarlo antes de avanzar al mes siguiente
     if ya_pagado > 0 and mes_ya_pagado:
-        # Iniciar con el período incompleto como mes actual
         mes_actual    = mes_ya_pagado
-        acumulado_mes = ya_pagado   # lo que ya pagó antes
-        mes_cerrado   = False       # el mes anterior no está cerrado aún
+        acumulado_mes = ya_pagado
+        mes_cerrado   = False
 
     def cerrar():
         nonlocal acumulado_mes, pagos_mes_actual, mes_actual, diff_pendiente
@@ -217,19 +207,17 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
         obs = ''
         if len(pagos_mes_actual) > 1:
             obs = f'Pago fraccionado — total ${total:,.0f}'
-        if clasificacion == 'dif' and ultimo_monto_pagado > 0:
+        # Solo sugerir reajuste si pagó DE MENOS y monto similar al mes anterior
+        if diff < 0 and ultimo_monto_pagado > 0:
             if abs(total - ultimo_monto_pagado) <= max(ultimo_monto_pagado * 0.02, 3000):
                 obs = f'Pagó igual que mes anterior (${ultimo_monto_pagado:,.0f}) — posible reajuste pendiente'
 
-        # Si hay múltiples pagos fraccionados, el primero es ABONO y el último es SALDO
         for i, p in enumerate(pagos_mes_actual):
             if len(pagos_mes_actual) > 1 and i < len(pagos_mes_actual) - 1:
-                # Pagos intermedios/primeros → ABONO
-                falta = monto_esp - sum(px['monto'] for px in pagos_mes_actual[:i+1])
+                falta    = monto_esp - sum(px['monto'] for px in pagos_mes_actual[:i+1])
                 estado_p = f'ABONO — falta ${falta:,.0f}'
                 obs_p    = obs
             else:
-                # Último pago → estado final (OK, DE MÁS, DE MENOS)
                 estado_p = estado
                 obs_p    = obs
             resultado.append({**p, 'carpeta': carpeta_id,
@@ -248,8 +236,6 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
         hay_mas = fi < len(fechas) - 1
 
         if not mes_cerrado:
-            # Si hay abono pendiente del período anterior y hay múltiples pagos del mismo día,
-            # procesarlos uno por uno para que el primero cierre el período pendiente
             if ya_pagado > 0 and len(grupo) > 1:
                 for gi, pago in enumerate(grupo):
                     hay_mas_inner = hay_mas or gi < len(grupo) - 1
@@ -257,14 +243,11 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
                     pagos_mes_actual += [pago]
                     ratio_inner = acumulado_mes / monto_esp if monto_esp > 0 else 1
                     if ratio_inner >= 1.0:
-                        cerrar()
-                        mes_cerrado = True
+                        cerrar(); mes_cerrado = True
                     elif not hay_mas_inner:
-                        cerrar()
-                        mes_cerrado = True
+                        cerrar(); mes_cerrado = True
                 continue
 
-            # Múltiples pagos del mismo día, cada uno >= 70% → meses distintos
             if len(grupo) > 1 and all(p['monto'] / monto_esp >= 0.70 for p in grupo):
                 for pago in grupo:
                     acumulado_mes    = pago['monto']
@@ -290,7 +273,6 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
                     cerrar(); mes_cerrado = True
                 elif prox_ratio >= 0.70 and ratio >= 0.90:
                     cerrar(); mes_cerrado = True
-                # Si no, seguir acumulando
 
         else:
             for pago in grupo:
@@ -324,7 +306,6 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
 
     return resultado
 
-# ── Procesar ──
 def procesar(hist_wb, cartola_wb):
     hist_keys, ultimo_mes, ultimo_monto, pagado_hist = parse_historial(hist_wb)
     abonos = parse_cartola(cartola_wb)
@@ -346,17 +327,14 @@ def procesar(hist_wb, cartola_wb):
             'ndoc': a['ndoc'], 'mes': mes_cartola, 'idx': a['idx']
         }
 
-        # ¿Es dueño / recuperación caja?
         match_caja = find_match_caja(a['rut_norm'])
         if match_caja:
-            # Carpeta y observación vacías — el usuario las completa manualmente
             res_caja.append({**base, 'carpeta': '', 'estado': 'RECUPERACIÓN CAJA',
                              'clasificacion': 'caja', 'obs': ''})
             continue
 
         match = find_match(a['rut_norm'], a['monto'])
         if not match:
-            # Reserva — observación vacía
             res_res.append({**base, 'carpeta': '', 'estado': 'RESERVA',
                            'clasificacion': 'reserva', 'obs': ''})
             continue
@@ -365,21 +343,15 @@ def procesar(hist_wb, cartola_wb):
         monto_esp  = match['MONTO_ESP']
 
         if carpeta_id not in carpetas:
-            # Detectar si hay abono pendiente del período anterior
-            ult_mes_rut   = ultimo_mes.get(a['rut_norm'], '')
-            carp_norm     = str(carpeta_id).strip()
+            ult_mes_rut = ultimo_mes.get(a['rut_norm'], '')
+            carp_norm   = str(carpeta_id).strip()
 
-            # ¿Cuánto pagó en el último mes registrado? (puede ser abono incompleto)
-            # Buscar primero por carpeta, luego por RUT como fallback
             ya_pagado_ult = pagado_hist.get(f"{carp_norm}_{ult_mes_rut}", 0)
             if ya_pagado_ult == 0 and a.get('rut_norm'):
                 ya_pagado_ult = pagado_hist.get(f"RUT_{a['rut_norm']}_{ult_mes_rut}", 0)
 
-            # Abono pendiente solo si pagó menos del 70% del monto de referencia
-            # Usar el menor entre monto_esp actual y ultimo_monto pagado
-            # Evita falsos positivos cuando el monto cambió recientemente
             monto_ref = ultimo_monto.get(a['rut_norm'], monto_esp)
-            umbral = min(monto_esp, monto_ref) * 0.70
+            umbral    = min(monto_esp, monto_ref) * 0.70
             if ya_pagado_ult > 0 and ya_pagado_ult < umbral:
                 ya_pagado     = ya_pagado_ult
                 mes_ya_pagado = ult_mes_rut
@@ -388,21 +360,20 @@ def procesar(hist_wb, cartola_wb):
                 mes_ya_pagado = ''
 
             carpetas[carpeta_id] = {
-                'carpeta':      carpeta_id,
-                'rut':          a['rut'] or 'Sin RUT',
-                'rut_norm':     a['rut_norm'] or '',
-                'monto_esp':    monto_esp,
-                'ultimo_mes':   ult_mes_rut,
-                'ya_pagado':    ya_pagado,
+                'carpeta':       carpeta_id,
+                'rut':           a['rut'] or 'Sin RUT',
+                'rut_norm':      a['rut_norm'] or '',
+                'monto_esp':     monto_esp,
+                'ultimo_mes':    ult_mes_rut,
+                'ya_pagado':     ya_pagado,
                 'mes_ya_pagado': mes_ya_pagado,
-                'pagos':        []
+                'pagos':         []
             }
         carpetas[carpeta_id]['pagos'].append({**base, 'carpeta': carpeta_id})
 
     for cid, info in carpetas.items():
         info['pagos'] = sorted(info['pagos'], key=lambda x: x['idx'])
 
-    # Una sola llamada por carpeta — resultado va a res_arr y vista
     vista_carpetas = []
     todos_arr = []
 
@@ -417,9 +388,8 @@ def procesar(hist_wb, cartola_wb):
         for p in propuestas:
             todos_arr.append(p)
 
-        # Vista: solo carpetas con diferencia o múltiples pagos
-        estado_prop = propuestas[0]['clasificacion'] if propuestas else 'dif'
         tiene_dif   = any(p['clasificacion'] != 'ok' for p in propuestas)
+        estado_prop = propuestas[0]['clasificacion'] if propuestas else 'dif'
         if not tiene_dif and len(info['pagos']) == 1:
             continue
 
@@ -435,14 +405,12 @@ def procesar(hist_wb, cartola_wb):
             'mes':       sig_mes(info['ultimo_mes']) or mes_cartola,
         })
 
-    # Ordenar TODO por idx (orden exacto de la cartola bancaria)
     res_arr  = sorted(todos_arr, key=lambda x: x['idx'])
     res_res  = sorted(res_res,   key=lambda x: x['idx'])
     res_caja = sorted(res_caja,  key=lambda x: x['idx'])
 
     return res_arr, res_res, res_caja, mes_cartola, vista_carpetas
 
-# ── Escribir filas en Excel ──
 def escribir_filas(ws, rows, has_carpeta=True):
     last_row = ws.max_row
     while last_row > 3 and ws.cell(last_row, 1).value in [None, '']:
@@ -493,7 +461,6 @@ def escribir_filas(ws, rows, has_carpeta=True):
             pc.font = Font(name='Calibri',size=8,color=C_BLACK)
         pc.alignment = Alignment(horizontal='center',vertical='center')
 
-        # Columna 7: estado (solo en ARRIENDOS, no en reserva/caja)
         ec     = ws.cell(last_row,7)
         estado = str(ec.value) if ec.value else ''
         if estado == 'OK':
@@ -507,7 +474,6 @@ def escribir_filas(ws, rows, has_carpeta=True):
             ec.fill = PatternFill('solid',fgColor='FEE2E2')
         ec.alignment = Alignment(horizontal='center',vertical='center')
 
-        # Columna 8: observación
         ws.cell(last_row,8).font = Font(name='Calibri',size=8,color=C_MUTED,italic=True)
 
 def clonar_encabezado(wb, origen_name, destino_ws, nuevo_titulo):
@@ -528,31 +494,26 @@ def clonar_encabezado(wb, origen_name, destino_ws, nuevo_titulo):
         if col_letter in ws_orig.column_dimensions:
             destino_ws.column_dimensions[col_letter].width = ws_orig.column_dimensions[col_letter].width
 
-# ── Generar Excel ──
 def generar_excel(hist_wb, res_arr, res_res, res_caja):
-    # Eliminar pestañas obsoletas
     for eliminar in ['SIN ADM', 'EFECTIVO-CHEQUE', 'ARRIENDOS OK',
                      'ARRIENDOS CON DIFERENCIAS', 'REAJUSTES PENDIENTES']:
         if eliminar in hist_wb.sheetnames:
             del hist_wb[eliminar]
 
-    # Crear ARRIENDOS si no existe
     if 'ARRIENDOS' not in hist_wb.sheetnames:
         ws_arr = hist_wb.create_sheet('ARRIENDOS', 1)
         clonar_encabezado(hist_wb, 'RESERVAS', ws_arr, 'Arriendos Reconocidos 2026')
 
-    # Ordenar pestañas
     orden = ['RESUMEN','ARRIENDOS','RESERVAS','RECUPERACIÓN CAJA']
     for i, nombre in enumerate(orden):
         if nombre in hist_wb.sheetnames:
             idx_actual = hist_wb.sheetnames.index(nombre)
             hist_wb.move_sheet(nombre, offset=i - idx_actual)
 
-    # Escribir datos — arriendos ya vienen ordenados por fecha (idx)
-    if res_arr  and 'ARRIENDOS'        in hist_wb.sheetnames:
-        escribir_filas(hist_wb['ARRIENDOS'],        res_arr,  True)
-    if res_res  and 'RESERVAS'         in hist_wb.sheetnames:
-        escribir_filas(hist_wb['RESERVAS'],         res_res,  False)
+    if res_arr  and 'ARRIENDOS'         in hist_wb.sheetnames:
+        escribir_filas(hist_wb['ARRIENDOS'],         res_arr,  True)
+    if res_res  and 'RESERVAS'          in hist_wb.sheetnames:
+        escribir_filas(hist_wb['RESERVAS'],          res_res,  False)
     if res_caja and 'RECUPERACIÓN CAJA' in hist_wb.sheetnames:
         escribir_filas(hist_wb['RECUPERACIÓN CAJA'], res_caja, False)
 
@@ -561,7 +522,6 @@ def generar_excel(hist_wb, res_arr, res_res, res_caja):
     output.seek(0)
     return output
 
-# ── Routes ──
 @app.route('/')
 def index():
     if not session.get('user'):
