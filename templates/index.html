@@ -67,8 +67,6 @@ input[type=file]{display:none}
 .kpi-num{font-size:24px;font-weight:600;line-height:1}
 .kpi-label{font-size:10px;color:var(--muted);margin-top:4px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
 .kpi-monto{font-size:10px;color:var(--muted2);margin-top:4px;font-family:'IBM Plex Mono',monospace}
-
-/* ── Vista carpetas ── */
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .section-title{font-size:13px;font-weight:600;color:var(--black);display:flex;align-items:center;gap:8px}
 .carpetas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-bottom:16px}
@@ -78,7 +76,6 @@ input[type=file]{display:none}
 .carpeta-card.clasif-dif{border-left:4px solid #EF4444}
 .carpeta-card.clasif-reajuste{border-left:4px solid #D97706}
 .carpeta-card.clasif-caja{border-left:4px solid #C2410C}
-.carpeta-card.clasif-reserva{border-left:4px solid #92400E}
 .carpeta-head{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--gray-a)}
 .carpeta-num{font-size:20px;font-weight:700;color:var(--navy)}
 .carpeta-rut{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-top:2px}
@@ -87,12 +84,6 @@ input[type=file]{display:none}
 .carpeta-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:11px}
 .carpeta-row-label{color:var(--muted)}
 .carpeta-row-val{font-weight:600;font-family:'IBM Plex Mono',monospace}
-.carpeta-diff-pos{color:#16A34A}
-.carpeta-diff-neg{color:#EF4444}
-.carpeta-diff-zero{color:var(--muted)}
-.carpeta-pagos{margin-top:8px;border-top:1px solid var(--gray-a);padding-top:8px}
-.carpeta-pago{display:flex;justify-content:space-between;font-size:10px;padding:3px 0;color:var(--muted)}
-.carpeta-pago-monto{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--black)}
 .carpeta-actions{padding:10px 14px;background:var(--gray-h);display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--gray-a)}
 .btn-clasif{font-size:10px;font-weight:600;padding:4px 10px;border-radius:5px;border:1px solid;cursor:pointer;transition:all .15s;font-family:'IBM Plex Sans',sans-serif}
 .btn-clasif.active-ok{background:#DCFCE7;color:#14532D;border-color:#16A34A}
@@ -103,8 +94,6 @@ input[type=file]{display:none}
 .btn-clasif:hover{opacity:.8}
 .carpeta-obs{width:100%;margin-top:6px;padding:5px 8px;font-size:10px;border:1px solid var(--gray-b);border-radius:5px;font-family:'IBM Plex Sans',sans-serif;color:var(--black);resize:none;height:42px}
 .carpeta-obs:focus{outline:none;border-color:var(--blue)}
-
-/* ── Tabs vista tabla ── */
 .tabs{display:flex;border-bottom:1px solid var(--gray-b);margin-bottom:14px}
 .tab{padding:8px 18px;font-size:12px;font-weight:500;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;display:flex;align-items:center;gap:6px}
 .tab:hover{color:var(--black)}
@@ -146,7 +135,6 @@ td{padding:7px 12px;vertical-align:middle}
 </style>
 </head>
 <body>
-
 <div class="topbar">
   <div class="topbar-brand">
     <div class="topbar-logo">EA</div>
@@ -162,7 +150,6 @@ td{padding:7px 12px;vertical-align:middle}
 </div>
 
 <div class="container">
-
   <div class="steps">
     <div class="step"><div class="step-num">1</div><div class="step-title">Sube los archivos</div><div class="step-sub">El historial acumulativo del año y la cartola bancaria del día.</div></div>
     <div class="step"><div class="step-num">2</div><div class="step-title">Revisa por carpeta</div><div class="step-sub">El sistema propone la clasificación. Confirma o ajusta cada una.</div></div>
@@ -205,11 +192,7 @@ td{padding:7px 12px;vertical-align:middle}
   <div class="update-info" id="updateInfo"></div>
 
   <div id="secResultado" class="hidden">
-
-    <!-- KPIs -->
     <div class="kpi-grid" id="kpiGrid"></div>
-
-    <!-- Vista carpetas / tabla -->
     <div class="card">
       <div class="section-header">
         <div class="section-title" id="secTitulo">📋 Revisión por carpeta</div>
@@ -218,23 +201,18 @@ td{padding:7px 12px;vertical-align:middle}
           <button class="view-btn" id="btnVistaTabla" onclick="setVista('tabla')">📋 Tabla detalle</button>
         </div>
       </div>
-
-      <!-- Vista carpetas -->
       <div id="vistaCarpetas">
         <div class="toolbar">
           <input class="search" id="buscadorCarpeta" type="text" placeholder="Buscar carpeta, RUT..." oninput="renderCarpetas()">
           <span class="counter" id="contadorCarpetas"></span>
         </div>
         <div class="carpetas-grid" id="carpetasGrid"></div>
-        <!-- Reservas y caja van directo al Excel -->
         <div id="secDirectos" class="hidden">
           <div style="font-size:11px;color:var(--muted);padding:8px 0 4px;font-weight:600;">
             📥 Van directo al Excel sin revisión: <span id="lblDirectos"></span>
           </div>
         </div>
       </div>
-
-      <!-- Vista tabla -->
       <div id="vistaTabla" class="hidden">
         <div class="tabs" id="tabsRow"></div>
         <div class="toolbar">
@@ -248,7 +226,6 @@ td{padding:7px 12px;vertical-align:middle}
       </div>
     </div>
   </div>
-
   <div class="footer">Etchepare y Asociados — Uso interno — v4.0</div>
 </div>
 
@@ -257,9 +234,8 @@ const MESES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','
 const MES_BG={ENERO:'#DBEAFE',FEBRERO:'#BAE6FD',MARZO:'#BBF7D0',ABRIL:'#FEF08A',MAYO:'#FED7AA',JUNIO:'#FECACA',JULIO:'#E9D5FF',AGOSTO:'#FBCFE8',SEPTIEMBRE:'#A7F3D0',OCTUBRE:'#FDE68A',NOVIEMBRE:'#BAE6FD',DICIEMBRE:'#DDD6FE'};
 const MES_FG={ENERO:'#1E3A8A',FEBRERO:'#075985',MARZO:'#14532D',ABRIL:'#713F12',MAYO:'#7C2D12',JUNIO:'#7F1D1D',JULIO:'#4C1D95',AGOSTO:'#831843',SEPTIEMBRE:'#064E3B',OCTUBRE:'#78350F',NOVIEMBRE:'#0C4A6E',DICIEMBRE:'#3B0764'};
 
-let resultData=null, tabActiva='ok', vistaActual='carpetas';
-// decisiones locales: {carpeta_id: {clasificacion, mes, obs}}
-let decisiones = {};
+let resultData=null, tabActiva='arr', vistaActual='carpetas';
+let decisiones={};
 
 function fmt(n){return Math.round(n).toLocaleString('es-CL');}
 
@@ -309,18 +285,11 @@ async function procesar(){
     const data=await resp.json();
     if(data.error){err.textContent='Error: '+data.error;err.style.display='block';return;}
     resultData=data;
-
-    // Inicializar decisiones desde propuestas del servidor
     decisiones={};
     (data.carpetas||[]).forEach(c=>{
-      decisiones[c.carpeta]={
-        clasificacion: c.propuesta||'dif',
-        mes: c.mes||data.mes,
-        obs: c.obs||''
-      };
+      decisiones[c.carpeta]={clasificacion:c.propuesta||'dif',mes:c.mes||data.mes,obs:c.obs||''};
     });
-
-    const arr=data.arr||[], res=data.res||[], caja=data.caja||[];
+    const arr=data.arr||[],res=data.res||[],caja=data.caja||[];
     const total=arr.length+res.length+caja.length;
     if(total===0){
       info.textContent='✓ Todos los depósitos ya estaban en el historial. No hay registros nuevos.';
@@ -341,14 +310,13 @@ async function procesar(){
 
 function mostrarResultado(){
   document.getElementById('secResultado').classList.remove('hidden');
-  const arr=resultData.arr||[], res=resultData.res||[], caja=resultData.caja||[];
+  const arr=resultData.arr||[],res=resultData.res||[],caja=resultData.caja||[];
   const all=[...arr,...res,...caja];
-
   const kpis=[
-    {label:'Total nuevos',   color:'#2563EB', data:all},
-    {label:'Arriendos',      color:'#1F3864', data:arr},
-    {label:'Reservas',       color:'#92400E', data:res},
-    {label:'Rec. Caja',      color:'#C2410C', data:caja},
+    {label:'Total nuevos',color:'#2563EB',data:all},
+    {label:'Arriendos',color:'#1F3864',data:arr},
+    {label:'Reservas',color:'#92400E',data:res},
+    {label:'Rec. Caja',color:'#C2410C',data:caja},
   ];
   document.getElementById('kpiGrid').innerHTML=kpis.map((k,i)=>`
     <div class="kpi${i===0?' active':''}" id="kpi${i}" onclick="clickKpi(${i})">
@@ -357,7 +325,6 @@ function mostrarResultado(){
       <div class="kpi-label">${k.label}</div>
       <div class="kpi-monto">$${fmt(k.data.reduce((s,r)=>s+(r.monto||0),0))}</div>
     </div>`).join('');
-
   renderCarpetas();
   renderTabsTabla();
   document.getElementById('secResultado').scrollIntoView({behavior:'smooth'});
@@ -365,52 +332,38 @@ function mostrarResultado(){
 
 function setVista(v){
   vistaActual=v;
-  document.getElementById('vistaCarpetas').classList.toggle('hidden', v!=='carpetas');
-  document.getElementById('vistaTabla').classList.toggle('hidden', v!=='tabla');
-  document.getElementById('btnVistaCarpetas').classList.toggle('active', v==='carpetas');
-  document.getElementById('btnVistaTabla').classList.toggle('active', v==='tabla');
+  document.getElementById('vistaCarpetas').classList.toggle('hidden',v!=='carpetas');
+  document.getElementById('vistaTabla').classList.toggle('hidden',v!=='tabla');
+  document.getElementById('btnVistaCarpetas').classList.toggle('active',v==='carpetas');
+  document.getElementById('btnVistaTabla').classList.toggle('active',v==='tabla');
   if(v==='tabla') renderTabla();
 }
 
 function clasifLabel(c){
-  const map={ok:'✔ OK', dif:'⚡ Diferencia', reajuste:'⚠️ Reajuste', caja:'🏠 Rec. Caja', reserva:'★ Reserva'};
-  return map[c]||c;
+  return {ok:'✔ OK',dif:'⚡ Diferencia',reajuste:'⚠️ Reajuste',caja:'🏠 Rec. Caja',reserva:'★ Reserva'}[c]||c;
 }
 function clasifColors(c){
-  const map={
-    ok:{bg:'#DCFCE7',fg:'#14532D'},
-    dif:{bg:'#FEE2E2',fg:'#991B1B'},
-    reajuste:{bg:'#FEF3C7',fg:'#92400E'},
-    caja:{bg:'#FED7AA',fg:'#7C2D12'},
-    reserva:{bg:'#FEF3C7',fg:'#92400E'},
-  };
-  return map[c]||{bg:'#F1F5F9',fg:'#475569'};
+  return ({ok:{bg:'#DCFCE7',fg:'#14532D'},dif:{bg:'#FEE2E2',fg:'#991B1B'},reajuste:{bg:'#FEF3C7',fg:'#92400E'},caja:{bg:'#FED7AA',fg:'#7C2D12'},reserva:{bg:'#FEF3C7',fg:'#92400E'}})[c]||{bg:'#F1F5F9',fg:'#475569'};
 }
 
 function renderCarpetas(){
-  const carpetas = resultData?.carpetas||[];
-  const q = (document.getElementById('buscadorCarpeta').value||'').toLowerCase();
-  const filtradas = carpetas.filter(c=>
-    !q || c.carpeta.toString().includes(q) || (c.rut||'').toLowerCase().includes(q)
-  );
+  const carpetas=resultData?.carpetas||[];
+  const q=(document.getElementById('buscadorCarpeta').value||'').toLowerCase();
+  const filtradas=carpetas.filter(c=>!q||c.carpeta.toString().includes(q)||(c.rut||'').toLowerCase().includes(q));
   document.getElementById('contadorCarpetas').textContent=`${filtradas.length} carpetas`;
 
-  const html = filtradas.map(c=>{
-    const dec = decisiones[c.carpeta] || {clasificacion: c.propuesta||'dif', mes: c.mes, obs:''};
-    const col = clasifColors(dec.clasificacion);
-
-    // Usar mes y estado que vienen del backend (ya calculados correctamente)
-    const pagosHtml = c.pagos.map((p,i)=>{
-      const mesP = p.mes || c.mes;
-      const mesBg = MES_BG[mesP]||'#F1F5F9';
-      const mesFg = MES_FG[mesP]||'#475569';
-      const est = p.estado||'';
-      let estColor = '#475569';
+  const html=filtradas.map(c=>{
+    const dec=decisiones[c.carpeta]||{clasificacion:c.propuesta||'dif',mes:c.mes,obs:''};
+    const col=clasifColors(dec.clasificacion);
+    const pagosHtml=c.pagos.map(p=>{
+      const mesP=p.mes||c.mes;
+      const mesBg=MES_BG[mesP]||'#F1F5F9';
+      const mesFg=MES_FG[mesP]||'#475569';
+      const est=p.estado||'';
+      let estColor='#475569';
       if(est==='OK') estColor='#16A34A';
       else if(est.startsWith('▲')) estColor='#1D4ED8';
-      else if(est.startsWith('▼')) estColor='#991B1B';
-      else if(est.includes('REAJUSTE')) estColor='#D97706';
-      else if(est.includes('CAJA')) estColor='#C2410C';
+      else if(est.startsWith('▼')||est.startsWith('ABONO')) estColor='#991B1B';
       return`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #F1F5F9;font-size:11px;gap:6px">
         <span style="color:#475569;white-space:nowrap">${p.fecha}</span>
         <span style="background:${mesBg};color:${mesFg};font-weight:700;padding:1px 7px;border-radius:3px;font-size:9px;white-space:nowrap">${mesP}</span>
@@ -418,65 +371,40 @@ function renderCarpetas(){
         <span style="color:${estColor};font-weight:700;font-size:10px;text-align:right">${est}</span>
       </div>`;
     }).join('');
-
-    const clasifs = ['ok','dif','reajuste','caja'];
-    const btnsHtml = clasifs.map(cl=>`
-      <button class="btn-clasif ${dec.clasificacion===cl?'active-'+cl:'inactive'}"
-        onclick="setClasif('${c.carpeta}','${cl}','${c.mes}')">
-        ${clasifLabel(cl)}
-      </button>`).join('');
-
+    const btnsHtml=['ok','dif','reajuste','caja'].map(cl=>`
+      <button class="btn-clasif ${dec.clasificacion===cl?'active-'+cl:'inactive'}" onclick="setClasif('${c.carpeta}','${cl}','${c.mes}')">${clasifLabel(cl)}</button>`).join('');
     return`<div class="carpeta-card clasif-${dec.clasificacion}" id="card-${c.carpeta}">
       <div class="carpeta-head">
-        <div>
-          <div class="carpeta-num">${c.carpeta}</div>
-          <div class="carpeta-rut">${c.rut}</div>
-        </div>
+        <div><div class="carpeta-num">${c.carpeta}</div><div class="carpeta-rut">${c.rut}</div></div>
         <span class="carpeta-badge" style="background:${col.bg};color:${col.fg}">${clasifLabel(dec.clasificacion)}</span>
       </div>
       <div class="carpeta-body">
-        <div class="carpeta-row">
-          <span class="carpeta-row-label">Monto esperado mensual</span>
-          <span class="carpeta-row-val">$${fmt(c.monto_esp)}</span>
-        </div>
-        <div class="carpeta-pagos" style="margin-top:8px">${pagosHtml}</div>
+        <div class="carpeta-row"><span class="carpeta-row-label">Monto esperado mensual</span><span class="carpeta-row-val">$${fmt(c.monto_esp)}</span></div>
+        <div style="margin-top:8px">${pagosHtml}</div>
       </div>
       <div class="carpeta-actions">
         ${btnsHtml}
-        <textarea class="carpeta-obs" id="obs-${c.carpeta}" placeholder="Observación (opcional)..."
-          onchange="setObs('${c.carpeta}',this.value)">${dec.obs||''}</textarea>
+        <textarea class="carpeta-obs" id="obs-${c.carpeta}" placeholder="Observación (opcional)..." onchange="setObs('${c.carpeta}',this.value)">${dec.obs||''}</textarea>
       </div>
     </div>`;
   }).join('');
 
-  document.getElementById('carpetasGrid').innerHTML = html || '<div class="empty"><div class="empty-icon">🔍</div><div>Sin carpetas reconocidas</div></div>';
-
-  // Info directos (reservas + caja)
-  const res=resultData?.res||[], caja=resultData?.caja||[];
+  document.getElementById('carpetasGrid').innerHTML=html||'<div class="empty"><div class="empty-icon">🔍</div><div>Sin carpetas para revisar</div></div>';
+  const res=resultData?.res||[],caja=resultData?.caja||[];
   const dirSec=document.getElementById('secDirectos');
   if(res.length+caja.length>0){
     dirSec.classList.remove('hidden');
     document.getElementById('lblDirectos').textContent=`${res.length} reservas · ${caja.length} recuperación caja`;
-  }else{
-    dirSec.classList.add('hidden');
-  }
+  }else dirSec.classList.add('hidden');
 }
 
-async function setClasif(carpeta, clasif, mes){
-  if(!decisiones[carpeta]) decisiones[carpeta]={clasificacion:clasif, mes:mes, obs:''};
-  decisiones[carpeta].clasificacion = clasif;
-
-  // Guardar en servidor
+async function setClasif(carpeta,clasif,mes){
+  if(!decisiones[carpeta]) decisiones[carpeta]={clasificacion:clasif,mes:mes,obs:''};
+  decisiones[carpeta].clasificacion=clasif;
   try{
-    await fetch('/guardar_decision',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({carpeta, mes: resultData?.mes||mes, clasificacion:clasif,
-        obs: decisiones[carpeta].obs||'', mes_asignado: mes})
-    });
+    await fetch('/guardar_decision',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({carpeta,mes:resultData?.mes||mes,clasificacion:clasif,obs:decisiones[carpeta].obs||'',mes_asignado:mes})});
   }catch(e){}
-
-  // Re-render solo esa card
   const card=document.getElementById('card-'+carpeta);
   if(card){
     const col=clasifColors(clasif);
@@ -485,40 +413,33 @@ async function setClasif(carpeta, clasif, mes){
     card.querySelector('.carpeta-badge').style.background=col.bg;
     card.querySelector('.carpeta-badge').style.color=col.fg;
     card.querySelectorAll('.btn-clasif').forEach(btn=>{
-      const bc=btn.textContent.trim();
       const map={'✔ OK':'ok','⚡ Diferencia':'dif','⚠️ Reajuste':'reajuste','🏠 Rec. Caja':'caja'};
-      const bCl=Object.entries(map).find(([k])=>bc.includes(k.replace(/[✔⚡⚠️🏠]/g,'').trim()));
-      const btnClasif = Object.entries(map).find(([k,v])=>bc.includes(k))?.[1];
+      const btnClasif=Object.entries(map).find(([k])=>btn.textContent.includes(k))?.[1];
       btn.className=`btn-clasif ${btnClasif===clasif?'active-'+clasif:'inactive'}`;
     });
   }
 }
 
-function setObs(carpeta, obs){
+function setObs(carpeta,obs){
   if(!decisiones[carpeta]) decisiones[carpeta]={clasificacion:'dif',mes:'',obs:''};
   decisiones[carpeta].obs=obs;
   try{
-    fetch('/guardar_decision',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({carpeta, mes:resultData?.mes||'', clasificacion:decisiones[carpeta].clasificacion, obs, mes_asignado:decisiones[carpeta].mes||''})
-    });
+    fetch('/guardar_decision',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({carpeta,mes:resultData?.mes||'',clasificacion:decisiones[carpeta].clasificacion,obs,mes_asignado:decisiones[carpeta].mes||''})});
   }catch(e){}
 }
 
-// ── Vista tabla ──
 const TABS=[
-  {id:'arr',  label:'🏠 Arriendos',    bg:'#DBEAFE',fg:'#1E3A8A'},
-  {id:'res',  label:'★ Reserva',      bg:'#FEF3C7',fg:'#92400E'},
-  {id:'caja', label:'🏠 Rec. Caja',   bg:'#FED7AA',fg:'#7C2D12'},
+  {id:'arr',label:'🏠 Arriendos',bg:'#DBEAFE',fg:'#1E3A8A'},
+  {id:'res',label:'★ Reserva',bg:'#FEF3C7',fg:'#92400E'},
+  {id:'caja',label:'🏠 Rec. Caja',bg:'#FED7AA',fg:'#7C2D12'},
 ];
 const getData=id=>resultData?(resultData[id]||[]):[];
 
 function renderTabsTabla(){
   document.getElementById('tabsRow').innerHTML=TABS.map(t=>`
     <div class="tab${t.id===tabActiva?' active':''}" onclick="switchTab('${t.id}')">
-      ${t.label}
-      <span class="tab-badge" style="background:${t.bg};color:${t.fg}">${getData(t.id).length}</span>
+      ${t.label}<span class="tab-badge" style="background:${t.bg};color:${t.fg}">${getData(t.id).length}</span>
     </div>`).join('');
 }
 
@@ -541,23 +462,19 @@ function renderTabla(){
   if(q)data=data.filter(r=>(r.rut||'').toLowerCase().includes(q)||(r.carpeta||'').toLowerCase().includes(q)||(r.desc||'').toLowerCase().includes(q)||(r.mes||'').toLowerCase().includes(q));
   document.getElementById('contador').textContent=`${data.length} registros`;
   document.getElementById('emptyState').classList.toggle('hidden',data.length>0);
-
   const simple=tabActiva==='res';
-  const hdrs=simple?['Fecha','RUT','Monto ($)','Mes','Estado','Descripción']:['Fecha','Carpeta','RUT','Monto ($)','Mes','Estado','Descripción'];
+  const hdrs=simple?['Fecha','RUT','Monto ($)','Mes','Descripción']:['Fecha','Carpeta','RUT','Monto ($)','Mes','Estado','Descripción'];
   document.getElementById('tableHead').innerHTML=`<tr>${hdrs.map(h=>`<th>${h}</th>`).join('')}</tr>`;
   document.getElementById('tableBody').innerHTML=data.map(r=>{
     const mb=r.mes&&MES_BG[r.mes]?`<span class="badge b-mes" style="background:${MES_BG[r.mes]};color:${MES_FG[r.mes]}">${r.mes}</span>`:(r.mes||'—');
     let eb;
-    const est=r.estado||r.obs||'';
-    if(r.estado==='OK'||r.estado==='')      eb='<span class="badge b-ok">✔ OK</span>';
-    else if(r.estado==='RESERVA')           eb='<span class="badge b-reserva">★ Reserva</span>';
+    if(r.estado==='OK'||!r.estado) eb='<span class="badge b-ok">✔ OK</span>';
+    else if(r.estado==='RESERVA') eb='<span class="badge b-reserva">★ Reserva</span>';
     else if(r.estado==='RECUPERACIÓN CAJA') eb='<span class="badge b-caja">🏠 Rec. Caja</span>';
-    else if(r.estado&&r.estado.includes('REAJUSTE')) eb=`<span class="badge b-reajuste">${r.estado}</span>`;
-    else if(r.estado&&r.estado.startsWith('▲')) eb=`<span class="badge b-mas">${r.estado}</span>`;
-    else if(r.estado&&r.estado.startsWith('▼')) eb=`<span class="badge b-menos">${r.estado}</span>`;
-    else eb=`<span class="badge b-ok">${r.estado}</span>`;
-
-    if(simple)return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-mes">${mb}</td><td class="td-estado">${eb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
+    else if(r.estado.startsWith('▲')) eb=`<span class="badge b-mas">${r.estado}</span>`;
+    else if(r.estado.startsWith('▼')||r.estado.startsWith('ABONO')) eb=`<span class="badge b-menos">${r.estado}</span>`;
+    else eb=`<span class="badge b-reajuste">${r.estado}</span>`;
+    if(simple)return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-mes">${mb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
     return`<tr><td class="td-fecha">${r.fecha}</td><td class="td-carp">${r.carpeta||''}</td><td class="td-rut">${r.rut}</td><td class="td-monto">$${fmt(r.monto)}</td><td class="td-mes">${mb}</td><td class="td-estado">${eb}</td><td class="td-desc" title="${r.desc}">${r.desc}</td></tr>`;
   }).join('');
 }
@@ -568,27 +485,25 @@ async function descargar(){
   document.getElementById('progMsg').textContent='Generando Excel con formato...';
   document.getElementById('progBar').classList.add('show');
   try{
-    // Aplicar decisiones a los datos antes de descargar
-    // Construir lista arriendos aplicando decisiones del usuario
-    const arr=[], res=resultData.res||[], caja=resultData.caja||[];
-    (resultData.carpetas||[]).forEach(c=>{
-      const dec=decisiones[c.carpeta]||{clasificacion:c.propuesta||'dif',mes:c.mes,obs:''};
-      c.pagos.forEach(p=>{
-        const item={...p, carpeta:c.carpeta, mes:dec.mes||p.mes||c.mes,
-          obs: dec.obs||p.obs||'',
-          clasificacion: dec.clasificacion||p.clasificacion||'dif'};
-        arr.push(item);
-      });
-    });
-    // Agregar arriendos OK que no pasaron por revisión (van directo)
-    (resultData.arr||[]).forEach(r=>{
-      const yaEsta = arr.find(a=>a.fecha===r.fecha && a.monto===r.monto && a.rut===r.rut);
-      if(!yaEsta) arr.push(r);
+    // ── CLAVE: usar resultData.arr directamente — ya viene ordenado por idx del servidor ──
+    // Solo aplicar observaciones de decisiones del usuario encima
+    const arr = (resultData.arr||[]).map(r=>{
+      const dec = decisiones[r.carpeta];
+      if(dec){
+        return {...r,
+          obs: dec.obs || r.obs || '',
+          // Si el usuario cambió la clasificación, actualizar el estado
+          estado: dec.clasificacion==='ok' ? 'OK' :
+                  dec.clasificacion==='caja' ? 'RECUPERACIÓN CAJA' :
+                  r.estado
+        };
+      }
+      return r;
     });
 
     const fd=new FormData();
     fd.append('historial',h);
-    fd.append('data',JSON.stringify({arr,res,caja}));
+    fd.append('data',JSON.stringify({arr, res:resultData.res||[], caja:resultData.caja||[]}));
     const resp=await fetch('/descargar',{method:'POST',body:fd});
     if(!resp.ok){const d=await resp.json();alert('Error: '+d.error);return;}
     const blob=await resp.blob();
