@@ -27,7 +27,6 @@ MES_FG = {'ENERO':'1E3A8A','FEBRERO':'075985','MARZO':'14532D','ABRIL':'713F12',
 C_NAVY  = '1F3864'
 C_WHITE = 'FFFFFF'
 C_GRAY_H= 'F8FAFC'
-C_GRAY_B= 'CBD5E1'
 C_BLACK = '1E293B'
 C_MUTED = '475569'
 
@@ -96,11 +95,16 @@ def find_match_caja(rut_norm):
     if not rut_norm or rut_norm not in BD_CAJA_LOOKUP: return None
     return BD_CAJA_LOOKUP[rut_norm][0]
 
+# ── Parse historial ──
 def parse_historial(wb):
     keys         = set()
     ultimo_mes   = {}
     ultimo_monto = {}
     pagado_hist  = {}
+    # patron_carpeta: carpeta → {periodo → n_pagos}
+    # Para detectar si habitualmente paga en cuotas o de una sola vez
+    patron_carpeta = {}
+
     sheets_validas = ['ARRIENDOS','ARRIENDOS OK','ARRIENDOS CON DIFERENCIAS',
                       'REAJUSTES PENDIENTES','RESERVAS','RECUPERACIÓN CAJA']
     for sname in wb.sheetnames:
@@ -128,10 +132,17 @@ def parse_historial(wb):
             if monto and periodo in MESES:
                 try:
                     monto_int = int(float(monto))
+                    # Acumular por carpeta+período
                     if carpeta and str(carpeta).strip() not in ['', 'nan', 'None']:
                         carp_norm = str(carpeta).strip()
                         key_cp    = f"{carp_norm}_{periodo}"
                         pagado_hist[key_cp] = pagado_hist.get(key_cp, 0) + monto_int
+                        # Contar pagos por carpeta+período para detectar patrón
+                        if carp_norm not in patron_carpeta:
+                            patron_carpeta[carp_norm] = {}
+                        if periodo not in patron_carpeta[carp_norm]:
+                            patron_carpeta[carp_norm][periodo] = 0
+                        patron_carpeta[carp_norm][periodo] += 1
                     if rut:
                         key_rut = f"RUT_{rut}_{periodo}"
                         pagado_hist[key_rut] = pagado_hist.get(key_rut, 0) + monto_int
@@ -151,7 +162,32 @@ def parse_historial(wb):
                     try: ultimo_monto[rut] = int(float(monto))
                     except: pass
 
-    return keys, ultimo_mes, ultimo_monto, pagado_hist
+    return keys, ultimo_mes, ultimo_monto, pagado_hist, patron_carpeta
+
+# ── Detectar patrón de pago de una carpeta ──
+def detectar_patron(carpeta_id, patron_carpeta):
+    """
+    Analiza el historial de pagos de una carpeta.
+    Retorna: 'abono_habitual', 'pago_unico', 'irregular', o 'sin_historial'
+    """
+    if carpeta_id not in patron_carpeta:
+        return 'sin_historial'
+
+    periodos = patron_carpeta[carpeta_id]
+    if len(periodos) < 2:
+        return 'sin_historial'
+
+    # Contar períodos con múltiples pagos vs períodos con un solo pago
+    meses_con_cuotas = sum(1 for n in periodos.values() if n > 1)
+    meses_pago_unico = sum(1 for n in periodos.values() if n == 1)
+    total = len(periodos)
+
+    if meses_con_cuotas >= total * 0.60:
+        return 'abono_habitual'    # 60%+ de los meses paga en cuotas
+    elif meses_pago_unico >= total * 0.80:
+        return 'pago_unico'        # 80%+ paga de una sola vez
+    else:
+        return 'irregular'
 
 def parse_cartola(wb):
     ws = wb.active
@@ -179,7 +215,10 @@ def detectar_mes(abonos):
             except: pass
     return ''
 
-def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola, ultimo_monto_pagado=0, ya_pagado=0, mes_ya_pagado=''):
+# ── Clasificación por carpeta ──
+def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_cartola,
+                           ultimo_monto_pagado=0, ya_pagado=0, mes_ya_pagado='',
+                           patron='sin_historial'):
     from collections import OrderedDict
 
     resultado        = []
@@ -194,6 +233,29 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
         acumulado_mes = ya_pagado
         mes_cerrado   = False
 
+    def obs_para_diferencia(diff, total):
+        """Genera observación inteligente según patrón y diferencia"""
+        if diff >= 0:
+            return ''  # DE MÁS → sin obs automática
+
+        # DE MENOS — usar patrón para sugerir
+        if patron == 'abono_habitual':
+            return 'Abono — patrón habitual de pago en cuotas'
+        elif patron == 'pago_unico':
+            # Si pagó similar al mes anterior → posible reajuste/descuento
+            if ultimo_monto_pagado > 0 and abs(total - ultimo_monto_pagado) <= max(ultimo_monto_pagado * 0.02, 3000):
+                return f'Pagó igual que mes anterior (${ultimo_monto_pagado:,.0f}) — posible descuento autorizado'
+            return 'Diferencia — revisar (habitualmente paga completo)'
+        elif patron == 'irregular':
+            if ultimo_monto_pagado > 0 and abs(total - ultimo_monto_pagado) <= max(ultimo_monto_pagado * 0.02, 3000):
+                return f'Pagó igual que mes anterior (${ultimo_monto_pagado:,.0f}) — posible reajuste pendiente'
+            return 'Diferencia — revisar'
+        else:
+            # Sin historial suficiente
+            if ultimo_monto_pagado > 0 and abs(total - ultimo_monto_pagado) <= max(ultimo_monto_pagado * 0.02, 3000):
+                return f'Pagó igual que mes anterior (${ultimo_monto_pagado:,.0f}) — posible reajuste pendiente'
+            return ''
+
     def cerrar():
         nonlocal acumulado_mes, pagos_mes_actual, mes_actual, diff_pendiente
         total = acumulado_mes
@@ -203,20 +265,21 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
         else:           estado = f'▼ DE MENOS -${abs(diff):,.0f}'; clasificacion = 'dif'
         diff_pendiente = abs(diff) if diff < 0 else 0
 
-        # Observación automática
+        # Observación automática con patrón
         obs = ''
         if len(pagos_mes_actual) > 1:
             obs = f'Pago fraccionado — total ${total:,.0f}'
-        # Solo sugerir reajuste si pagó DE MENOS y monto similar al mes anterior
-        if diff < 0 and ultimo_monto_pagado > 0:
-            if abs(total - ultimo_monto_pagado) <= max(ultimo_monto_pagado * 0.02, 3000):
-                obs = f'Pagó igual que mes anterior (${ultimo_monto_pagado:,.0f}) — posible reajuste pendiente'
+        else:
+            obs = obs_para_diferencia(diff, total)
 
         for i, p in enumerate(pagos_mes_actual):
             if len(pagos_mes_actual) > 1 and i < len(pagos_mes_actual) - 1:
                 falta    = monto_esp - sum(px['monto'] for px in pagos_mes_actual[:i+1])
-                estado_p = f'ABONO — falta ${falta:,.0f}'
-                obs_p    = obs
+                if patron == 'abono_habitual':
+                    estado_p = f'ABONO — falta ${falta:,.0f}'
+                else:
+                    estado_p = f'ABONO — falta ${falta:,.0f}'
+                obs_p = obs
             else:
                 estado_p = estado
                 obs_p    = obs
@@ -299,15 +362,17 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
                     resultado.append({**pago, 'carpeta': carpeta_id,
                         'mes': mes_actual,
                         'estado': f'▼ ABONO PRÓX. MES -${abs(diff):,.0f}',
-                        'clasificacion': 'dif', 'obs': 'Abono parcial — posible pago anticipado próximo mes'})
+                        'clasificacion': 'dif',
+                        'obs': 'Abono parcial — posible pago anticipado próximo mes'})
 
     if pagos_mes_actual:
         cerrar()
 
     return resultado
 
+# ── Procesar ──
 def procesar(hist_wb, cartola_wb):
-    hist_keys, ultimo_mes, ultimo_monto, pagado_hist = parse_historial(hist_wb)
+    hist_keys, ultimo_mes, ultimo_monto, pagado_hist, patron_carpeta = parse_historial(hist_wb)
     abonos = parse_cartola(cartola_wb)
     mes_cartola = detectar_mes(abonos)
 
@@ -359,6 +424,8 @@ def procesar(hist_wb, cartola_wb):
                 ya_pagado     = 0
                 mes_ya_pagado = ''
 
+            patron = detectar_patron(carp_norm, patron_carpeta)
+
             carpetas[carpeta_id] = {
                 'carpeta':       carpeta_id,
                 'rut':           a['rut'] or 'Sin RUT',
@@ -367,6 +434,7 @@ def procesar(hist_wb, cartola_wb):
                 'ultimo_mes':    ult_mes_rut,
                 'ya_pagado':     ya_pagado,
                 'mes_ya_pagado': mes_ya_pagado,
+                'patron':        patron,
                 'pagos':         []
             }
         carpetas[carpeta_id]['pagos'].append({**base, 'carpeta': carpeta_id})
@@ -383,7 +451,8 @@ def procesar(hist_wb, cartola_wb):
             info['ultimo_mes'], mes_cartola,
             ultimo_monto.get(info['rut_norm'], 0),
             info.get('ya_pagado', 0),
-            info.get('mes_ya_pagado', '')
+            info.get('mes_ya_pagado', ''),
+            info.get('patron', 'sin_historial')
         )
         for p in propuestas:
             todos_arr.append(p)
@@ -402,6 +471,7 @@ def procesar(hist_wb, cartola_wb):
             'n_pagos':   len(info['pagos']),
             'pagos':     propuestas,
             'propuesta': estado_prop,
+            'patron':    info.get('patron', 'sin_historial'),
             'mes':       sig_mes(info['ultimo_mes']) or mes_cartola,
         })
 
@@ -469,7 +539,7 @@ def escribir_filas(ws, rows, has_carpeta=True):
         elif estado.startswith('▲'):
             ec.font = Font(name='Calibri',bold=True,size=8,color='1D4ED8')
             ec.fill = PatternFill('solid',fgColor='DBEAFE')
-        elif estado.startswith('▼'):
+        elif estado.startswith('▼') or estado.startswith('ABONO'):
             ec.font = Font(name='Calibri',bold=True,size=8,color='991B1B')
             ec.fill = PatternFill('solid',fgColor='FEE2E2')
         ec.alignment = Alignment(horizontal='center',vertical='center')
