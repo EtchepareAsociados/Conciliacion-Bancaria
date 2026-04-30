@@ -392,13 +392,16 @@ def procesar(hist_wb, cartola_wb):
             'ndoc': a['ndoc'], 'mes': mes_cartola, 'idx': a['idx']
         }
 
-        match_caja = find_match_caja(a['rut_norm'])
-        if match_caja:
-            res_caja.append({**base, 'carpeta': '', 'estado': 'RECUPERACIÓN CAJA',
-                             'clasificacion': 'caja', 'obs': ''})
-            continue
-
+        # Verificar arrendatario PRIMERO — si el monto coincide, es arriendo aunque sea dueño
         match = find_match(a['rut_norm'], a['monto'])
+
+        # Solo verificar recuperación caja si NO hay match como arrendatario
+        if not match:
+            match_caja = find_match_caja(a['rut_norm'])
+            if match_caja:
+                res_caja.append({**base, 'carpeta': '', 'estado': 'RECUPERACIÓN CAJA',
+                                 'clasificacion': 'caja', 'obs': ''})
+                continue
         if not match:
             res_res.append({**base, 'carpeta': '', 'estado': 'RESERVA',
                            'clasificacion': 'reserva', 'obs': ''})
