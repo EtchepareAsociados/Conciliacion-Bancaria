@@ -129,6 +129,8 @@ def parse_historial(wb):
                 try: keys.add(f"{rut}|{int(float(monto))}|{fecha}")
                 except: pass
 
+            estado_hist = str(row[6]).strip() if len(row) > 6 and row[6] else ''
+
             if monto and periodo in MESES:
                 try:
                     monto_int = int(float(monto))
@@ -137,6 +139,16 @@ def parse_historial(wb):
                         carp_norm = str(carpeta).strip()
                         key_cp    = f"{carp_norm}_{periodo}"
                         pagado_hist[key_cp] = pagado_hist.get(key_cp, 0) + monto_int
+                        # Registrar si el último pago quedó DE MENOS (sin descuento autorizado)
+                        obs_hist = str(row[7]).strip() if len(row) > 7 and row[7] else ''
+                        es_descuento = any(x in obs_hist.lower() for x in ['descuento', 'autorizado', 'rebaja'])
+                        if ('▼' in estado_hist or 'DE MENOS' in estado_hist.upper()) and not es_descuento:
+                            diff_key = f"DIFF_{carp_norm}_{periodo}"
+                            import re as _re
+                            m_diff = _re.search(r'[\d]+', estado_hist.replace('.','').replace(',','').replace('$',''))
+                            if m_diff:
+                                try: pagado_hist[diff_key] = int(m_diff.group(0))
+                                except: pass
                         # Contar pagos por carpeta+período para detectar patrón
                         if carp_norm not in patron_carpeta:
                             patron_carpeta[carp_norm] = {}
@@ -349,9 +361,18 @@ def proponer_clasificacion(carpeta_id, pagos, monto_esp, ultimo_mes_rut, mes_car
                         'obs': f'Posible reajuste pendiente de ${diff_pendiente:,.0f}'})
                     diff_pendiente = 0
                 elif ratio <= 0.20:
-                    resultado.append({**pago, 'carpeta': carpeta_id,
-                        'mes': mes_actual, 'estado': '🏠 RECUPERACIÓN CAJA',
-                        'clasificacion': 'caja', 'obs': ''})
+                    # Si hay diferencia pendiente del mes actual → es saldo de ese mes
+                    if diff_pendiente > 0 and abs(pago['monto'] - diff_pendiente) <= max(diff_pendiente * 0.50, 10000):
+                        resultado.append({**pago, 'carpeta': carpeta_id,
+                            'mes': mes_actual, 'estado': f'▼ DE MENOS -${diff_pendiente - pago["monto"]:,.0f}' if pago['monto'] < diff_pendiente else 'OK',
+                            'clasificacion': 'ok' if pago['monto'] >= diff_pendiente else 'dif',
+                            'obs': f'Saldo pendiente de ${diff_pendiente:,.0f}'})
+                        diff_pendiente = max(0, diff_pendiente - pago['monto'])
+                    else:
+                        # Sin diferencia pendiente → recuperación caja
+                        resultado.append({**pago, 'carpeta': carpeta_id,
+                            'mes': mes_actual, 'estado': '🏠 RECUPERACIÓN CAJA',
+                            'clasificacion': 'caja', 'obs': ''})
                 elif ratio >= 0.70:
                     acumulado_mes    = pago['monto']
                     pagos_mes_actual = [pago]
