@@ -145,9 +145,11 @@ def parse_historial(wb):
                         if ('▼' in estado_hist or 'DE MENOS' in estado_hist.upper()) and not es_descuento:
                             diff_key = f"DIFF_{carp_norm}_{periodo}"
                             import re as _re
-                            m_diff = _re.search(r'[\d]+', estado_hist.replace('.','').replace(',','').replace('$',''))
+                            # Limpiar y extraer número: "▼ DE MENOS -$516,609" → 516609
+                            clean = estado_hist.replace('$','').replace('.','').replace(',','')
+                            m_diff = _re.search(r'(\d+)', clean)
                             if m_diff:
-                                try: pagado_hist[diff_key] = int(m_diff.group(0))
+                                try: pagado_hist[diff_key] = int(m_diff.group(1))
                                 except: pass
                         # Contar pagos por carpeta+período para detectar patrón
                         if carp_norm not in patron_carpeta:
@@ -717,6 +719,16 @@ def descargar_route():
                          as_attachment=True, download_name=filename)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/reset_decisiones')
+def reset_decisiones():
+    if not session.get('user'):
+        return 'No autorizado', 401
+    try:
+        save_decisiones({})
+        return 'Decisiones reseteadas OK', 200
+    except Exception as e:
+        return f'Error: {e}', 500
 
 @app.route('/health')
 def health():
